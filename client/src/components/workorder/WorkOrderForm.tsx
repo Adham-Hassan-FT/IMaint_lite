@@ -15,6 +15,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -32,17 +33,18 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 // Extend the schema with custom validation
 const formSchema = insertWorkOrderSchema.extend({
-  title: z.string().min(3, "Title must be at least 3 characters"),
+  title: z.string().min(2, "Title must be at least 2 characters"),
   description: z.string().min(5, "Description must be at least 5 characters"),
   dateNeeded: z.date().optional(),
-  dateScheduled: z.date().optional(),
+  dateRequested: z.date().default(() => new Date()),
   estimatedHours: z.string().optional().transform(val => val ? parseFloat(val) : undefined),
   estimatedCost: z.string().optional().transform(val => val ? parseFloat(val) : undefined),
 });
@@ -58,40 +60,25 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Get users for assignment
-  const { data: users, isLoading: isLoadingUsers } = useQuery({
-    queryKey: ['/api/users'],
-  });
-
-  // Get assets for assignment
-  const { data: assets, isLoading: isLoadingAssets } = useQuery({
-    queryKey: ['/api/assets'],
-  });
-
-  // Get work order types
+  // Get work order types for dropdown
   const { data: workOrderTypes, isLoading: isLoadingTypes } = useQuery({
     queryKey: ['/api/work-order-types'],
   });
 
-  // Get current user
-  const { data: currentUser } = useQuery({
-    queryKey: ['/api/auth/me'],
+  // Get assets for dropdown
+  const { data: assets, isLoading: isLoadingAssets } = useQuery({
+    queryKey: ['/api/assets'],
+  });
+
+  // Get users for dropdown
+  const { data: users, isLoading: isLoadingUsers } = useQuery({
+    queryKey: ['/api/users'],
   });
 
   // Create mutation for creating work order
   const createWorkOrderMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      // Generate a work order number
-      const workOrderNumber = `WO-${new Date().getTime().toString().slice(-6)}`;
-      
-      const workOrderData = {
-        ...data,
-        workOrderNumber,
-        requestedById: currentUser?.id,
-        dateRequested: new Date(),
-      };
-      
-      await apiRequest("POST", "/api/work-orders", workOrderData);
+      await apiRequest("POST", "/api/work-orders", data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/work-orders/details'] });
@@ -113,10 +100,12 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      workOrderNumber: `WO-${Math.floor(1000 + Math.random() * 9000)}`,
       title: "",
       description: "",
-      priority: "medium",
       status: "requested",
+      priority: "medium",
+      dateRequested: new Date(),
     },
   });
 
@@ -131,50 +120,39 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New Work Order</DialogTitle>
           <DialogDescription>
-            Enter the details for the new work order
+            Enter the details for the new maintenance work order
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Title</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Work Order Title" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Describe the work to be done" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="workOrderNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Work Order #</FormLabel>
+                    <FormControl>
+                      <Input {...field} readOnly />
+                    </FormControl>
+                    <FormDescription>
+                      Automatically generated number
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
               <FormField
                 control={form.control}
                 name="typeId"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Type</FormLabel>
+                    <FormLabel>Work Order Type</FormLabel>
                     <Select 
                       onValueChange={(value) => field.onChange(Number(value))} 
                       value={field.value?.toString()}
@@ -200,7 +178,41 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
                   </FormItem>
                 )}
               />
-              
+            </div>
+            
+            <FormField
+              control={form.control}
+              name="title"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Title</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Work order title" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Detailed description of the work required" 
+                      className="min-h-[100px]" 
+                      {...field} 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="assetId"
@@ -232,23 +244,24 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
                   </FormItem>
                 )}
               />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
+              
               <FormField
                 control={form.control}
                 name="priority"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Priority</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      value={field.value}
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select priority" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {workOrderPriorityEnum.enumValues.map((priority) => (
+                        {Object.values(workOrderPriorityEnum.enumValues).map((priority) => (
                           <SelectItem key={priority} value={priority}>
                             {priority.charAt(0).toUpperCase() + priority.slice(1)}
                           </SelectItem>
@@ -259,65 +272,36 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
                   </FormItem>
                 )}
               />
-              
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="status"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      value={field.value}
+                      disabled
+                    >
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select status" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {workOrderStatusEnum.enumValues.map((status) => (
+                        {Object.values(workOrderStatusEnum.enumValues).map((status) => (
                           <SelectItem key={status} value={status}>
                             {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="dateNeeded"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Date Needed</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className="w-full pl-3 text-left font-normal"
-                          >
-                            {field.value ? (
-                              format(field.value, "PPP")
-                            ) : (
-                              <span className="text-muted-foreground">Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <FormDescription>
+                      New work orders start as "Requested"
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -325,17 +309,17 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
               
               <FormField
                 control={form.control}
-                name="assignedToId"
+                name="requestedById"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Assigned To</FormLabel>
+                    <FormLabel>Requested By</FormLabel>
                     <Select 
                       onValueChange={(value) => field.onChange(Number(value))} 
                       value={field.value?.toString()}
                     >
                       <FormControl>
                         <SelectTrigger>
-                          <SelectValue placeholder="Select assignee" />
+                          <SelectValue placeholder="Select requestor" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
@@ -359,12 +343,92 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
+                name="assignedToId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Assigned To</FormLabel>
+                    <Select 
+                      onValueChange={(value) => field.onChange(Number(value))} 
+                      value={field.value?.toString()}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select assignee" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="">Not Assigned</SelectItem>
+                        {isLoadingUsers ? (
+                          <SelectItem value="loading" disabled>Loading...</SelectItem>
+                        ) : (
+                          users?.map((user) => (
+                            <SelectItem key={user.id} value={user.id.toString()}>
+                              {user.fullName}
+                            </SelectItem>
+                          ))
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="dateNeeded"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>Date Needed</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={"outline"}
+                            className={cn(
+                              "w-full pl-3 text-left font-normal",
+                              !field.value && "text-muted-foreground"
+                            )}
+                          >
+                            {field.value ? (
+                              format(field.value, "PPP")
+                            ) : (
+                              <span>Pick a date</span>
+                            )}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={(date) =>
+                            date < new Date(new Date().setHours(0, 0, 0, 0))
+                          }
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormDescription>
+                      When the work needs to be completed
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
                 name="estimatedHours"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Estimated Hours</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.1" placeholder="0.0" {...field} />
+                      <Input type="number" step="0.5" placeholder="0" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -378,7 +442,12 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
                   <FormItem>
                     <FormLabel>Estimated Cost</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        placeholder="0.00" 
+                        {...field} 
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
