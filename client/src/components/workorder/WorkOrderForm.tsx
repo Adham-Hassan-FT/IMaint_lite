@@ -39,14 +39,27 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-// Extend the schema with custom validation
-const formSchema = insertWorkOrderSchema.extend({
+// Create a custom zod schema for API submission
+const formSchema = z.object({
+  workOrderNumber: z.string(),
   title: z.string().min(2, "Title must be at least 2 characters"),
   description: z.string().min(5, "Description must be at least 5 characters"),
-  dateNeeded: z.date().optional(),
+  typeId: z.number(),
+  assetId: z.number(),
+  priority: z.enum(Object.values(workOrderPriorityEnum.enumValues) as [string, ...string[]]),
+  status: z.enum(Object.values(workOrderStatusEnum.enumValues) as [string, ...string[]]).default('requested'),
+  requestedById: z.number(),
+  assignedToId: z.number().optional().nullable(),
   dateRequested: z.date().default(() => new Date()),
+  dateNeeded: z.date().optional(),
   estimatedHours: z.string().optional(),
   estimatedCost: z.string().optional(),
+  dateScheduled: z.date().optional(),
+  dateStarted: z.date().optional(),
+  dateCompleted: z.date().optional(),
+  actualHours: z.string().optional(),
+  actualCost: z.string().optional(),
+  completionNotes: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -149,9 +162,8 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
     try {
       console.log('Submitting work order data:', data);
       
-      // Send the data directly as-is to the API
-      // The form schema and API both expect the same types now - Date objects for dates
-      // and string/undefined for estimated hours/cost
+      // Format data for API - we need to convert Date objects to ISO strings
+      // that the server can parse properly (server is expecting strings, not Date objects)
       const formData = {
         ...data,
         // Convert IDs to numbers
@@ -159,6 +171,13 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
         assetId: Number(data.assetId),
         requestedById: Number(data.requestedById),
         assignedToId: data.assignedToId ? Number(data.assignedToId) : undefined,
+        
+        // Convert Date objects to ISO strings
+        dateRequested: data.dateRequested.toISOString(),
+        dateNeeded: data.dateNeeded ? data.dateNeeded.toISOString() : undefined,
+        dateScheduled: data.dateScheduled ? data.dateScheduled.toISOString() : undefined,
+        dateStarted: data.dateStarted ? data.dateStarted.toISOString() : undefined,
+        dateCompleted: data.dateCompleted ? data.dateCompleted.toISOString() : undefined,
       };
       
       console.log('Formatted data for API:', formData);
