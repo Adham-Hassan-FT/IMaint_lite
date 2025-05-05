@@ -45,8 +45,8 @@ const formSchema = insertWorkOrderSchema.extend({
   description: z.string().min(5, "Description must be at least 5 characters"),
   dateNeeded: z.date().optional(),
   dateRequested: z.date().default(() => new Date()),
-  estimatedHours: z.string().optional().transform(val => val ? parseFloat(val) : undefined),
-  estimatedCost: z.string().optional().transform(val => val ? parseFloat(val) : undefined),
+  estimatedHours: z.string().optional(),
+  estimatedCost: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -149,24 +149,37 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
     try {
       console.log('Submitting work order data:', data);
       
-      // We need to send the data with proper types
-      // The API expects Date objects, not strings
-      await createWorkOrderMutation.mutateAsync({
+      // Send the data directly as-is to the API
+      // The form schema and API both expect the same types now - Date objects for dates
+      // and string/undefined for estimated hours/cost
+      const formData = {
         ...data,
+        // Convert IDs to numbers
         typeId: Number(data.typeId),
         assetId: Number(data.assetId),
         requestedById: Number(data.requestedById),
         assignedToId: data.assignedToId ? Number(data.assignedToId) : undefined,
-      });
+      };
+      
+      console.log('Formatted data for API:', formData);
+      await createWorkOrderMutation.mutateAsync(formData);
+      
+      onSubmitSuccess(); // Call the success handler when form succeeds
     } catch (error: any) {
       console.error('Error submitting work order:', error);
       // Add more detailed error handling
       if (error.response && error.response.data) {
         console.error('Server validation errors:', error.response.data);
+        
+        // Display specific error messages from the server
+        const errorMessage = error.response.data.errors 
+          ? error.response.data.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ')
+          : error.response.data.message || "Validation error";
+          
         toast({
           variant: "destructive",
           title: "Failed to create work order",
-          description: error.response.data.message || "Validation error",
+          description: errorMessage,
         });
       } else {
         toast({
