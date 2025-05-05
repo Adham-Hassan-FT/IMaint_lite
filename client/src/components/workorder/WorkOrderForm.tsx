@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -100,11 +100,35 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
   // Generate unique work order number
   const uniqueWorkOrderNumber = `WO-${Math.floor(1000 + Math.random() * 9000)}`;
   
-  // Set up default values properly
-  const defaultAssetId = 1;
-  const defaultTypeId = 1;
-  const defaultRequestedById = 1;
+  // Wait for data to load before initializing the form
+  const [formInitialized, setFormInitialized] = useState(false);
   
+  useEffect(() => {
+    // Wait for data to be loaded before initializing form with default values
+    if (!isLoadingTypes && !isLoadingAssets && !isLoadingUsers && !formInitialized) {
+      // Find default IDs from loaded data
+      const defaultAssetId = assets && assets.length > 0 ? assets[0].id : 1;
+      const defaultTypeId = workOrderTypes && workOrderTypes.length > 0 ? workOrderTypes[0].id : 1;
+      const defaultRequestedById = users && users.length > 0 ? users[0].id : 1;
+      
+      // Set default values
+      form.reset({
+        workOrderNumber: uniqueWorkOrderNumber,
+        title: "",
+        description: "",
+        status: "requested",
+        priority: "medium",
+        dateRequested: new Date(),
+        assetId: defaultAssetId,
+        typeId: defaultTypeId,
+        requestedById: defaultRequestedById,
+      });
+      
+      setFormInitialized(true);
+    }
+  }, [isLoadingTypes, isLoadingAssets, isLoadingUsers, assets, workOrderTypes, users, formInitialized]);
+  
+  // Initialize form with basic defaults
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -114,9 +138,9 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
       status: "requested",
       priority: "medium",
       dateRequested: new Date(),
-      assetId: defaultAssetId,
-      typeId: defaultTypeId,
-      requestedById: defaultRequestedById,
+      assetId: 1,
+      typeId: 1,
+      requestedById: 1,
     },
   });
 

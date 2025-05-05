@@ -1,0 +1,83 @@
+
+iMaint
+Maintenance Management
+
+DashboardWork OrdersPreventive MaintenanceAssetsInventoryResourcesBarcode Scanner
+Logout
+
+
+Work Orders
+Manage and track maintenance work orders
+
+New Work Order
+All
+Open
+Scheduled
+Completed
+WO-001
+Scheduled Maintenance
+
+Asset:
+Production Line A
+Requested by:
+Admin User
+Date needed:
+May 12, 2025
+Medium
+Scheduled
+View Details
+Create New Work Order
+Enter the details for the new maintenance work order
+
+Work Order #
+WO-3363
+Automatically generated number
+
+Work Order Type
+Preventive
+
+Title
+sdfsdfsdf
+Description
+sdsdfsdfsf
+Asset
+A-001 - Production Line A
+
+Priority
+Medium
+
+Status
+Requested
+
+New work orders start as "Requested"
+
+Requested By
+Admin User
+
+Assigned To
+Admin User
+
+Date Needed
+May 21st, 2025
+When the work needs to be completed
+
+Estimated Hours
+0
+Estimated Cost
+0.00
+Cancel
+Create Work Order
+Close
+[plugin:runtime-error-plugin] 400: {"message":"Validation error","errors":[{"code":"invalid_type","expected":"date","received":"string","path":["dateRequested"],"message":"Expected date, received string"},{"code":"invalid_type","expected":"date","received":"string","path":["dateNeeded"],"message":"Expected date, received string"}]}
+/home/runner/workspace/client/src/lib/queryClient.ts:6:11
+4  |    if (!res.ok) {
+5  |      const text = (await res.text()) || res.statusText;
+6  |      throw new Error(`${res.status}: ${text}`);
+   |            ^
+7  |    }
+8  |  }
+    at throwIfResNotOk /home/runner/workspace/client/src/lib/queryClient.ts:6:11
+    at async apiRequest (https://4cb14e9f-82ca-4604-bdfc-ea94e7386f0b-00-2ng8dbh19ndxz.picard.replit.dev/src/lib/queryClient.ts:15:3)
+    at async Object.mutationFn (https://4cb14e9f-82ca-4604-bdfc-ea94e7386f0b-00-2ng8dbh19ndxz.picard.replit.dev/src/components/workorder/WorkOrderForm.tsx:81:7
+Click outside, press Esc key, or fix the code to dismiss.
+You can also disable this overlay by setting server.hmr.overlay to false in vite.config.js.
