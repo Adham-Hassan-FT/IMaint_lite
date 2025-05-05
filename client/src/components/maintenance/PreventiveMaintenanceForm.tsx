@@ -105,14 +105,20 @@ export default function PreventiveMaintenanceForm({ onClose, onSubmitSuccess }: 
     mutationFn: async (data: FormValues) => {
       // In a real app, this would create a preventive maintenance schedule record
       // For now, simulate creating a work order instead
+      
+      // Generate a unique work order number
+      const workOrderNumber = `PM-${Date.now().toString().slice(-6)}`;
+      
       const response = await apiRequest("POST", "/api/work-orders", {
+        workOrderNumber: workOrderNumber,
         title: `Preventive Maintenance: ${data.description}`,
         description: data.description,
         assetId: data.assetId,
         priority: data.priority,
-        status: "pending",
+        status: "requested",
         dateNeeded: data.startDate,
-        estimatedDuration: data.duration.toString(),
+        dateRequested: new Date(),
+        estimatedHours: data.duration.toString(),
         notes: data.notes || null,
       });
       return response;
