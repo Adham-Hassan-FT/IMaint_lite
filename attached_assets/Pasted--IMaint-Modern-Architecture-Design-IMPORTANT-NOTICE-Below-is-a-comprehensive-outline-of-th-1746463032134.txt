@@ -1,0 +1,1680 @@
+# IMaint Modern Architecture Design
+
+## IMPORTANT NOTICE
+- Below is a comprehensive outline of the iMaint system, including features, data models, and architecture components based on analysis of the legacy codebase. This document serves as both a summary of the existing system and a blueprint for recreating it with modern architecture. ( do not use legacy stuff like triggers, views in the new project )
+
+## System Overview
+iMaint is a comprehensive maintenance management system that manages work orders, assets, inventory, purchasing, and resource scheduling. The system is designed around several interconnected modules that handle different aspects of maintenance operations while sharing common data and business rules.
+
+### Legacy Architecture Components
+- **imCore**: Contains core data models and business logic
+- **imDAL**: Data access layer for database operations
+- **imLogic**: Business logic implementation
+- **imBase**: Base classes and utilities
+- **imSecurity**: Security and authentication
+- **Client/iMaint**: Desktop client and UI implementation
+- **Dashboard**: Reporting and dashboard features
+
+## Core Features
+
+### 1. Work Order Management
+- Complete work order lifecycle (creation, assignment, scheduling, tracking, completion)
+- Resource allocation and tracking
+- Cost tracking and management
+- Status workflow engine with configurable state transitions
+- Mobile-friendly work order operations
+- Real-time status updates
+- Photo/document attachments
+- Barcode/QR code scanning
+- Work request creation and conversion to work orders
+- Task sequencing and scheduling
+- Labor time tracking and cost calculations
+- Material requisition and usage tracking
+- Work completion documentation
+- Work order histories and audit trails
+- Approval workflows for critical operations
+
+### 2. Asset Management
+- Asset tracking and hierarchies with parent-child relationships
+- Location tracking with geolocation support
+- Meter readings and maintenance scheduling
+- Asset status management with configurable states
+- Mobile asset inspection capabilities
+- Asset history tracking for all maintenance activities
+- Warranty and lifecycle management
+- QR/barcode asset identification
+- Preventive maintenance scheduling
+- Asset performance tracking
+- Downtime cost calculations
+- Asset procedure associations
+- Attachment management for technical documentation
+- Asset criticality ratings
+- Custom fields for specialized asset information
+- Asset depreciation tracking
+
+### 3. Inventory Management
+- Part tracking and stocking across multiple locations
+- Location management with bin/shelf organization
+- Cost calculations with various costing methods (FIFO, LIFO, average)
+- Inventory transactions (issues, receipts, adjustments, transfers)
+- Mobile inventory counts
+- Low stock notifications and automated reordering
+- Barcode scanning for inventory operations
+- Inventory reservations for work orders
+- Lot and serial number tracking
+- Unit of measure conversions
+- ABC inventory analysis
+- Inventory value reporting
+- Inter-site transfers
+- Inventory adjustments with reason codes
+- Inventory history and transaction auditing
+- Warehouse management
+
+### 4. Purchasing System
+- Purchase order workflow with configurable approval processes
+- Multi-level approval processes based on amount thresholds
+- Receipt handling for partial or complete deliveries
+- Cost tracking and variance analysis
+- Mobile approval capabilities
+- Vendor management with performance metrics
+- Purchase history tracking
+- Budget integration and cost accounting
+- Automated purchase order generation from low stock conditions
+- Multi-currency support
+- Tax calculations
+- Terms and conditions management
+- Receiving inspection
+- Invoice matching and processing
+- Vendor quotation management
+- Contract management
+
+### 5. Resource Management
+- Resource tracking for labor and equipment
+- Craft/skill management with certification tracking
+- Availability scheduling and calendar integration
+- Work assignment based on skills and availability
+- Mobile time tracking and labor reporting
+- Geolocation for field workforce
+- Skill-based assignment algorithms
+- Calendar integration for scheduling
+- Resource utilization reporting
+- Labor cost tracking
+- Shift management
+- Equipment scheduling
+- Availability forecasting
+- Resource leveling
+- Contractor management
+- Time approval workflows
+
+### 6. Security & Authentication
+- Modern OAuth 2.0/OIDC implementation
+- Role-based access control with fine-grained permissions
+- Permission management at function and data levels
+- Mobile-friendly authentication
+- Biometric authentication options
+- API key management for integrations
+- Token-based authentication
+- Multi-factor authentication
+- User profile management
+- Password policies
+- Session management
+- Activity logging
+- IP restrictions
+- Single sign-on capabilities
+- User group management
+- Status-based security for workflow states
+
+## Data Models
+
+### 1. Core Entities
+```csharp
+public class WorkOrder
+{
+    public int Id { get; set; }
+    public string WorkOrderNumber { get; set; }
+    public string Description { get; set; }
+    public WorkOrderStatus Status { get; set; }
+    public WorkOrderPriority Priority { get; set; }
+    public DateTime? DateNeeded { get; set; }
+    public DateTime? DateStarted { get; set; }
+    public DateTime? DateCompleted { get; set; }
+    public DateTime? DateCancelled { get; set; }
+    public DateTime? DateScheduled { get; set; }
+    public virtual Asset Asset { get; set; }
+    public virtual Location Location { get; set; }
+    public virtual User RequestedBy { get; set; }
+    public virtual User AssignedTo { get; set; }
+    public virtual WorkOrderType Type { get; set; }
+    public decimal? EstimatedCost { get; set; }
+    public decimal? ActualCost { get; set; }
+    public decimal? EstimatedHours { get; set; }
+    public decimal? ActualHours { get; set; }
+    public string CompletionNotes { get; set; }
+    public string CancellationReason { get; set; }
+    public virtual Warehouse Warehouse { get; set; }
+    public double? CalculatedPriority { get; set; }
+    public virtual Project Project { get; set; }
+    public bool IsEmergency { get; set; }
+    public virtual ICollection<WorkOrderLabor> Labor { get; set; }
+    public virtual ICollection<WorkOrderPart> Parts { get; set; }
+    public virtual ICollection<WorkOrderAttachment> Attachments { get; set; }
+    public virtual ICollection<WorkOrderNote> Notes { get; set; }
+    public virtual ICollection<WorkOrderAssetProcedure> AssetProcedures { get; set; }
+    public virtual ICollection<WorkOrderStatusHistory> StatusHistory { get; set; }
+}
+
+public class WorkOrderAssetProcedure
+{
+    public int Id { get; set; }
+    public int WorkOrderId { get; set; }
+    public virtual WorkOrder WorkOrder { get; set; }
+    public int? AssetId { get; set; }
+    public virtual Asset Asset { get; set; }
+    public int? ProcedureId { get; set; }
+    public virtual Procedure Procedure { get; set; }
+    public DateTime? DateScheduled { get; set; }
+    public DateTime? DateCompleted { get; set; }
+    public DateTime? DateCancelled { get; set; }
+    public decimal? EstimatedHours { get; set; }
+    public decimal? ActualHours { get; set; }
+    public string CompletionNotes { get; set; }
+    public virtual WorkOrderStatus Status { get; set; }
+    public virtual ICollection<WorkOrderAssetProcedureTask> Tasks { get; set; }
+    public virtual ICollection<WorkOrderAssetProcedureEstimatedPart> EstimatedParts { get; set; }
+    public virtual ICollection<WorkOrderAssetProcedureActualPart> ActualParts { get; set; }
+}
+
+public class WorkOrderAssetProcedureTask
+{
+    public int Id { get; set; }
+    public int WorkOrderAssetProcedureId { get; set; }
+    public virtual WorkOrderAssetProcedure WorkOrderAssetProcedure { get; set; }
+    public string TaskDescription { get; set; }
+    public int SequenceOrder { get; set; }
+    public decimal? EstimatedHours { get; set; }
+    public bool IsCompleted { get; set; }
+    public DateTime? CompletionDate { get; set; }
+    public string CompletionNotes { get; set; }
+    public virtual User CompletedBy { get; set; }
+    public bool RequiresSignoff { get; set; }
+}
+
+public class WorkOrderType
+{
+    public int Id { get; set; }
+    public string Code { get; set; }
+    public string Description { get; set; }
+    public bool IsActive { get; set; }
+    public bool AllowParts { get; set; }
+    public bool AllowLabor { get; set; }
+    public int? DefaultPriorityId { get; set; }
+    public virtual WorkOrderPriority DefaultPriority { get; set; }
+}
+
+public class WorkOrderStatus
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Description { get; set; }
+    public WorkOrderStatusCategory Category { get; set; }
+    public bool IsDefault { get; set; }
+    public bool WOReadOnly { get; set; }
+    public bool IssueParts { get; set; }
+    public bool IsActive { get; set; }
+    public int SortOrder { get; set; }
+}
+
+public class Asset
+{
+    public int Id { get; set; }
+    public string AssetNumber { get; set; }
+    public string Description { get; set; }
+    public AssetStatus Status { get; set; }
+    public AssetType Type { get; set; }
+    public virtual Location Location { get; set; }
+    public virtual Asset ParentAsset { get; set; }
+    public virtual ICollection<Asset> ChildAssets { get; set; }
+    public virtual ICollection<AssetMeter> Meters { get; set; }
+    public virtual ICollection<AssetAttachment> Attachments { get; set; }
+    public virtual Criticality Criticality { get; set; }
+    public virtual Manufacturer Manufacturer { get; set; }
+    public string Model { get; set; }
+    public string SerialNumber { get; set; }
+    public DateTime? InstallDate { get; set; }
+    public DateTime? WarrantyExpiration { get; set; }
+    public decimal? ReplacementCost { get; set; }
+    public decimal? InstallCost { get; set; }
+    public decimal? MaintDowntimeCostPerHour { get; set; }
+    public decimal? ProductionCostPerHour { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public double? LifeExpectancy { get; set; }
+    public virtual Customer Customer { get; set; }
+    public virtual ICollection<AssetGeneralLedger> GeneralLedgers { get; set; }
+    public virtual ICollection<AssetProcedure> AssetProcedures { get; set; }
+    public virtual ICollection<AssetStatusHistory> StatusHistory { get; set; }
+    public virtual ICollection<AssetWorkOrder> WorkOrders { get; set; }
+}
+
+public class AssetProcedure
+{
+    public int Id { get; set; }
+    public int AssetId { get; set; }
+    public virtual Asset Asset { get; set; }
+    public int ProcedureId { get; set; }
+    public virtual Procedure Procedure { get; set; }
+    public bool IsActive { get; set; }
+}
+
+public class Procedure
+{
+    public int Id { get; set; }
+    public string Code { get; set; }
+    public string Description { get; set; }
+    public string DetailedInstructions { get; set; }
+    public decimal? EstimatedHours { get; set; }
+    public virtual ICollection<ProcedureTask> Tasks { get; set; }
+    public virtual ICollection<ProcedurePart> Parts { get; set; }
+    public virtual ProcedureType Type { get; set; }
+    public bool IsActive { get; set; }
+}
+
+public class Inventory
+{
+    public int Id { get; set; }
+    public string PartNumber { get; set; }
+    public string Description { get; set; }
+    public decimal UnitCost { get; set; }
+    public string IssueUom { get; set; }
+    public string PurchaseUom { get; set; }
+    public double ConversionFactor { get; set; }
+    public virtual PartCategory Category { get; set; }
+    public virtual Warehouse PrimaryWarehouse { get; set; }
+    public virtual Supplier PrimarySupplier { get; set; }
+    public virtual Manufacturer Manufacturer { get; set; }
+    public bool HazardousMaterial { get; set; }
+    public string Msd { get; set; } // Material Safety Data
+    public bool Component { get; set; }
+    public string GeneralLedgerId { get; set; }
+    public virtual ICollection<InventoryLocation> Locations { get; set; }
+    public virtual ICollection<InventoryTransaction> Transactions { get; set; }
+    public bool IsActive { get; set; }
+    public decimal MinimumStock { get; set; }
+    public decimal ReorderPoint { get; set; }
+    public decimal ReorderQuantity { get; set; }
+    public bool Taxable { get; set; }
+    public TaxType? Taxes { get; set; }
+}
+
+public class PurchaseOrder
+{
+    public int Id { get; set; }
+    public string PONumber { get; set; }
+    public DateTime OrderDate { get; set; }
+    public POStatus Status { get; set; }
+    public virtual Supplier Supplier { get; set; }
+    public virtual ICollection<PurchaseOrderLine> LineItems { get; set; }
+    public virtual User RequestedBy { get; set; }
+    public virtual User ApprovedBy { get; set; }
+    public decimal TotalAmount { get; set; }
+    public DateTime? ExpectedDeliveryDate { get; set; }
+    public virtual ICollection<PurchaseOrderStatusHistory> StatusHistory { get; set; }
+    public string ShippingInstructions { get; set; }
+    public string Terms { get; set; }
+    public string Notes { get; set; }
+    public virtual Warehouse ReceivingWarehouse { get; set; }
+    public string SupplierReference { get; set; }
+    public virtual Currency Currency { get; set; }
+    public decimal ExchangeRate { get; set; }
+}
+
+public class PurchaseOrderLine
+{
+    public int Id { get; set; }
+    public int PurchaseOrderId { get; set; }
+    public virtual PurchaseOrder PurchaseOrder { get; set; }
+    public POOrderItemType ItemType { get; set; }
+    public int? InventoryId { get; set; }
+    public virtual Inventory Part { get; set; }
+    public int? ResourceId { get; set; }
+    public virtual Resource LaborResource { get; set; }
+    public int? MiscCostId { get; set; }
+    public virtual MiscCost MiscCost { get; set; }
+    public string Description { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal UnitPrice { get; set; }
+    public decimal TotalPrice { get; set; }
+    public string UnitOfMeasure { get; set; }
+    public decimal ReceivedQuantity { get; set; }
+    public string GeneralLedgerCode { get; set; }
+    public int? WorkOrderId { get; set; }
+    public virtual WorkOrder WorkOrder { get; set; }
+}
+
+public class User
+{
+    public int Id { get; set; }
+    public string Username { get; set; }
+    public string Email { get; set; }
+    public string FirstName { get; set; }
+    public string LastName { get; set; }
+    public bool IsActive { get; set; }
+    public virtual ICollection<UserRole> Roles { get; set; }
+    public virtual ICollection<Skill> Skills { get; set; }
+    public virtual ICollection<UserAvailability> Availability { get; set; }
+    public string PhoneNumber { get; set; }
+    public bool IsMobileUser { get; set; }
+    public string Department { get; set; }
+    public string Position { get; set; }
+    public string EmployeeId { get; set; }
+    public decimal? HourlyRate { get; set; }
+    public decimal? OvertimeRate { get; set; }
+    public string BadgeNumber { get; set; }
+    public virtual ICollection<UserProfile> Profiles { get; set; }
+}
+
+public class Location
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Description { get; set; }
+    public LocationType Type { get; set; }
+    public virtual Location ParentLocation { get; set; }
+    public virtual ICollection<Location> ChildLocations { get; set; }
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+    public string Address { get; set; }
+    public string City { get; set; }
+    public string State { get; set; }
+    public string PostalCode { get; set; }
+    public string Country { get; set; }
+    public bool IsActive { get; set; }
+}
+
+public class Warehouse
+{
+    public int Id { get; set; }
+    public string Code { get; set; }
+    public string Description { get; set; }
+    public virtual Location Location { get; set; }
+    public bool IsActive { get; set; }
+    public virtual ICollection<WarehouseLocation> Locations { get; set; }
+}
+
+public class WorkRequest
+{
+    public int Id { get; set; }
+    public string RequestNumber { get; set; }
+    public string Description { get; set; }
+    public DateTime RequestDate { get; set; }
+    public WorkRequestStatus Status { get; set; }
+    public virtual User RequestedBy { get; set; }
+    public virtual User AssignedTo { get; set; }
+    public virtual Asset Asset { get; set; }
+    public virtual Location Location { get; set; }
+    public virtual Priority Priority { get; set; }
+    public DateTime? RequiredDate { get; set; }
+    public string Notes { get; set; }
+    public int? WorkOrderId { get; set; }
+    public virtual WorkOrder WorkOrder { get; set; }
+}
+
+public class Schedule
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Description { get; set; }
+    public ScheduleType Type { get; set; }
+    public DateTime StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
+    public bool IsActive { get; set; }
+    public FrequencyType FrequencyType { get; set; }
+    public int? DailyEveryDays { get; set; }
+    public int? WeeklyEveryWeeks { get; set; }
+    public bool? WeeklySunday { get; set; }
+    public bool? WeeklyMonday { get; set; }
+    public bool? WeeklyTuesday { get; set; }
+    public bool? WeeklyWednesday { get; set; }
+    public bool? WeeklyThursday { get; set; }
+    public bool? WeeklyFriday { get; set; }
+    public bool? WeeklySaturday { get; set; }
+    public RepeatingDateMonthlyType? MonthlyType { get; set; }
+    public RepeatingDateIntervals? MonthlyTheInterval { get; set; }
+    public RepeatingDateDays? MonthlyTheDay { get; set; }
+    public int? MonthlyTheCount { get; set; }
+    public int? MonthlyDayNumber { get; set; }
+    public int? MonthlyDayCount { get; set; }
+    public RepeatingDateYearlyType? YearlyType { get; set; }
+    public RepeatingDateIntervals? YearlyTheInterval { get; set; }
+    public RepeatingDateDays? YearlyTheDay { get; set; }
+    public RepeatingDateMonths? YearlyTheMonth { get; set; }
+    public RepeatingDateMonths? YearlyEveryMonth { get; set; }
+    public virtual ICollection<ScheduleAssetProcedure> AssetProcedures { get; set; }
+}
+```
+
+### 2. Relationship Models
+```csharp
+public class WorkOrderLabor
+{
+    public int Id { get; set; }
+    public int WorkOrderId { get; set; }
+    public virtual WorkOrder WorkOrder { get; set; }
+    public int UserId { get; set; }
+    public virtual User User { get; set; }
+    public DateTime StartTime { get; set; }
+    public DateTime? EndTime { get; set; }
+    public decimal HoursWorked { get; set; }
+    public decimal LaborCost { get; set; }
+    public string Notes { get; set; }
+}
+
+public class WorkOrderPart
+{
+    public int Id { get; set; }
+    public int WorkOrderId { get; set; }
+    public virtual WorkOrder WorkOrder { get; set; }
+    public int InventoryId { get; set; }
+    public virtual Inventory Part { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal UnitCost { get; set; }
+    public decimal TotalCost { get; set; }
+    public bool IsIssued { get; set; }
+    public DateTime? IssuedDate { get; set; }
+}
+
+public class AssetMeter
+{
+    public int Id { get; set; }
+    public int AssetId { get; set; }
+    public virtual Asset Asset { get; set; }
+    public string Name { get; set; }
+    public string Unit { get; set; }
+    public decimal CurrentReading { get; set; }
+    public DateTime LastReadingDate { get; set; }
+    public virtual ICollection<MeterReading> Readings { get; set; }
+}
+
+public class InventoryLocation
+{
+    public int Id { get; set; }
+    public int InventoryId { get; set; }
+    public virtual Inventory Inventory { get; set; }
+    public int LocationId { get; set; }
+    public virtual Location Location { get; set; }
+    public decimal Quantity { get; set; }
+    public string Bin { get; set; }
+    public string Shelf { get; set; }
+}
+
+public class UserRole
+{
+    public int UserId { get; set; }
+    public virtual User User { get; set; }
+    public int RoleId { get; set; }
+    public virtual Role Role { get; set; }
+}
+```
+
+### 3. Transaction Models
+```csharp
+public class InventoryTransaction
+{
+    public int Id { get; set; }
+    public TransactionType Type { get; set; }
+    public int InventoryId { get; set; }
+    public virtual Inventory Inventory { get; set; }
+    public int? LocationFromId { get; set; }
+    public virtual Location LocationFrom { get; set; }
+    public int? LocationToId { get; set; }
+    public virtual Location LocationTo { get; set; }
+    public decimal Quantity { get; set; }
+    public decimal UnitCost { get; set; }
+    public DateTime TransactionDate { get; set; }
+    public int? WorkOrderId { get; set; }
+    public virtual WorkOrder WorkOrder { get; set; }
+    public int? PurchaseOrderId { get; set; }
+    public virtual PurchaseOrder PurchaseOrder { get; set; }
+    public int UserId { get; set; }
+    public virtual User TransactionBy { get; set; }
+    public string Notes { get; set; }
+}
+
+public class WorkOrderStatusHistory
+{
+    public int Id { get; set; }
+    public int WorkOrderId { get; set; }
+    public virtual WorkOrder WorkOrder { get; set; }
+    public WorkOrderStatus FromStatus { get; set; }
+    public WorkOrderStatus ToStatus { get; set; }
+    public DateTime ChangedDate { get; set; }
+    public int ChangedByUserId { get; set; }
+    public virtual User ChangedBy { get; set; }
+    public string Notes { get; set; }
+}
+
+public class AssetStatusHistory
+{
+    public int Id { get; set; }
+    public int AssetId { get; set; }
+    public virtual Asset Asset { get; set; }
+    public AssetStatus FromStatus { get; set; }
+    public AssetStatus ToStatus { get; set; }
+    public DateTime ChangedDate { get; set; }
+    public int ChangedByUserId { get; set; }
+    public virtual User ChangedBy { get; set; }
+    public string Notes { get; set; }
+}
+
+public class MeterReading
+{
+    public int Id { get; set; }
+    public int AssetMeterId { get; set; }
+    public virtual AssetMeter Meter { get; set; }
+    public decimal Reading { get; set; }
+    public DateTime ReadingDate { get; set; }
+    public int ReadByUserId { get; set; }
+    public virtual User ReadBy { get; set; }
+    public string Notes { get; set; }
+}
+```
+
+### 4. Status and Workflow Models
+```csharp
+public enum WorkOrderStatusCategory
+{
+    Open = 1,
+    Released = 2,
+    OnHold = 3,
+    Completed = 4,
+    Cancelled = 5
+}
+
+public enum AssetStatusCategory
+{
+    Active = 1,
+    Inactive = 2,
+    UnderRepair = 3,
+    Disposed = 4
+}
+
+public enum POStatusCategory
+{
+    Draft = 1,
+    Submitted = 2,
+    Approved = 3,
+    PartiallyReceived = 4,
+    Received = 5,
+    Cancelled = 6
+}
+
+public enum WorkRequestStatus
+{
+    OutstandingRequest = 1,
+    AssignedToResource = 2,
+    WorkOrderCreated = 3,
+    Rejected = 4,
+    Completed = 5
+}
+
+public class StatusTransition
+{
+    public int Id { get; set; }
+    public int EntityTypeId { get; set; }
+    public int FromStatusId { get; set; }
+    public int ToStatusId { get; set; }
+    public bool IsAllowed { get; set; }
+    public bool RequiresApproval { get; set; }
+    public string TransitionMessage { get; set; }
+}
+
+public class UserProfileStatusRule
+{
+    public int Id { get; set; }
+    public int UserProfileId { get; set; }
+    public virtual UserProfile UserProfile { get; set; }
+    public int EntityTypeId { get; set; }
+    public int FromStatusId { get; set; }
+    public int ToStatusId { get; set; }
+    public bool Editable { get; set; }
+}
+```
+
+### 5. Integration and Configuration Models
+```csharp
+public class ApplicationSettings
+{
+    public int Id { get; set; }
+    public DateTime? LingualLastModified { get; set; }
+    public int? DbBuild { get; set; }
+    public DateTime? LastModified { get; set; }
+    public string CorporateId { get; set; }
+    public int SplitDatabase { get; set; }
+    public int? ImportVersion { get; set; }
+    public int? ConfigurationOptions { get; set; }
+    public bool? TrackState { get; set; }
+}
+
+public class SiteProperty
+{
+    public int Id { get; set; }
+    public string PropertyName { get; set; }
+    public string PropertyValue { get; set; }
+    public string Description { get; set; }
+    public PropertyDataType DataType { get; set; }
+}
+
+public class Integration
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Description { get; set; }
+    public IntegrationType Type { get; set; }
+    public string ConnectionString { get; set; }
+    public string Username { get; set; }
+    public string Password { get; set; }
+    public bool IsActive { get; set; }
+    public string ScheduleExpression { get; set; }
+    public DateTime? LastRunDate { get; set; }
+    public IntegrationStatus LastRunStatus { get; set; }
+    public string LastRunMessage { get; set; }
+}
+
+public class ReportDefinition
+{
+    public int Id { get; set; }
+    public string Name { get; set; }
+    public string Description { get; set; }
+    public string Class { get; set; } 
+    public string Fields { get; set; }
+    public string FilterClause { get; set; }
+    public string Sort { get; set; }
+    public string MainOperator { get; set; }
+}
+```
+
+## Modern Architecture Design
+
+### 1. API Architecture
+
+#### RESTful API Design
+- API versioning (e.g., `/api/v1/work-orders`)
+- Resource-oriented endpoints
+- HTTP method semantics (GET, POST, PUT, DELETE, PATCH)
+- Consistent response formats
+- OpenAPI/Swagger documentation
+- Pagination, filtering, and sorting support
+- HATEOAS links for resource navigation
+- Response compression
+- Caching headers and ETags
+- Batch operations for efficiency
+
+#### Core API Endpoints
+
+```
+/api/v1/work-orders
+  GET /api/v1/work-orders
+  GET /api/v1/work-orders/{id}
+  POST /api/v1/work-orders
+  PUT /api/v1/work-orders/{id}
+  PATCH /api/v1/work-orders/{id}
+  DELETE /api/v1/work-orders/{id}
+  POST /api/v1/work-orders/{id}/complete
+  POST /api/v1/work-orders/{id}/cancel
+  GET /api/v1/work-orders/{id}/asset-procedures
+  GET /api/v1/work-orders/{id}/parts
+  GET /api/v1/work-orders/{id}/labor
+  GET /api/v1/work-orders/{id}/status-history
+  
+/api/v1/assets
+  GET /api/v1/assets
+  GET /api/v1/assets/{id}
+  POST /api/v1/assets
+  PUT /api/v1/assets/{id}
+  PATCH /api/v1/assets/{id}
+  DELETE /api/v1/assets/{id}
+  GET /api/v1/assets/{id}/children
+  GET /api/v1/assets/{id}/meters
+  GET /api/v1/assets/{id}/work-orders
+  POST /api/v1/assets/{id}/meters/{meterId}/readings
+  
+/api/v1/inventory
+  GET /api/v1/inventory
+  GET /api/v1/inventory/{id}
+  POST /api/v1/inventory
+  PUT /api/v1/inventory/{id}
+  PATCH /api/v1/inventory/{id}
+  DELETE /api/v1/inventory/{id}
+  GET /api/v1/inventory/{id}/locations
+  GET /api/v1/inventory/{id}/transactions
+  POST /api/v1/inventory/{id}/adjust
+  POST /api/v1/inventory/{id}/transfer
+  
+/api/v1/purchase-orders
+  GET /api/v1/purchase-orders
+  GET /api/v1/purchase-orders/{id}
+  POST /api/v1/purchase-orders
+  PUT /api/v1/purchase-orders/{id}
+  PATCH /api/v1/purchase-orders/{id}
+  DELETE /api/v1/purchase-orders/{id}
+  GET /api/v1/purchase-orders/{id}/line-items
+  POST /api/v1/purchase-orders/{id}/submit
+  POST /api/v1/purchase-orders/{id}/approve
+  POST /api/v1/purchase-orders/{id}/receive
+  
+/api/v1/users
+/api/v1/locations
+/api/v1/reports
+/api/v1/dashboard
+/api/v1/work-requests
+/api/v1/schedules
+```
+
+#### GraphQL API (Optional)
+- Single endpoint for complex data queries
+- Client-specified data requirements
+- Reduced over-fetching and under-fetching
+- Real-time subscriptions for updates
+- Batched operations
+- Query complexity analysis
+- Schema introspection
+
+#### API Controllers Pattern
+```csharp
+[ApiController]
+[Route("api/v1/work-orders")]
+public class WorkOrderController : ControllerBase
+{
+    private readonly IMediator _mediator;
+    
+    public WorkOrderController(IMediator mediator)
+    {
+        _mediator = mediator;
+    }
+    
+    [HttpGet]
+    public async Task<ActionResult<PagedResult<WorkOrderDto>>> GetWorkOrders(
+        [FromQuery] WorkOrderFilterDto filter,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string sortBy = "id",
+        [FromQuery] string sortDirection = "asc")
+    {
+        var query = new GetWorkOrdersQuery(filter, page, pageSize, sortBy, sortDirection);
+        var result = await _mediator.Send(query);
+        return Ok(result);
+    }
+    
+    [HttpGet("{id}")]
+    public async Task<ActionResult<WorkOrderDetailDto>> GetWorkOrder(int id)
+    {
+        var query = new GetWorkOrderDetailQuery(id);
+        var result = await _mediator.Send(query);
+        
+        if (result == null)
+            return NotFound();
+            
+        return Ok(result);
+    }
+    
+    [HttpPost]
+    public async Task<ActionResult<WorkOrderDetailDto>> CreateWorkOrder(CreateWorkOrderCommand command)
+    {
+        var result = await _mediator.Send(command);
+        return CreatedAtAction(nameof(GetWorkOrder), new { id = result.Id }, result);
+    }
+    
+    [HttpPost("{id}/complete")]
+    public async Task<ActionResult> CompleteWorkOrder(int id, CompleteWorkOrderCommand command)
+    {
+        if (id != command.Id)
+            return BadRequest();
+            
+        await _mediator.Send(command);
+        return NoContent();
+    }
+}
+```
+
+### 2. Authentication & Authorization
+
+#### Authentication
+- OAuth 2.0/OpenID Connect implementation
+- JWT token-based authentication
+- Refresh token pattern
+- Mobile-friendly authentication flow
+- Social login integration options
+- Multi-factor authentication support
+- API key authentication for system integrations
+- IP-based restrictions for sensitive operations
+
+#### Authorization
+- Role-based access control (RBAC)
+- Permission-based access control
+- API endpoint authorization
+- Data-level authorization
+- Claims-based identity
+- Policy-based authorization
+- Resource-based authorization
+- Rule-based workflow authorization
+
+#### Authorization Implementation
+```csharp
+public class WorkOrderAuthorizationHandler : 
+    AuthorizationHandler<OperationAuthorizationRequirement, WorkOrder>
+{
+    protected override Task HandleRequirementAsync(
+        AuthorizationHandlerContext context,
+        OperationAuthorizationRequirement requirement,
+        WorkOrder workOrder)
+    {
+        // Get user ID from claims
+        var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+            return Task.CompletedTask;
+            
+        // Check operation type
+        if (requirement.Name == Operations.Update.Name)
+        {
+            // Check if user is assigned to work order
+            if (workOrder.AssignedToId.ToString() == userId)
+            {
+                context.Succeed(requirement);
+                return Task.CompletedTask;
+            }
+            
+            // Check if user has admin role
+            if (context.User.IsInRole("Administrator"))
+            {
+                context.Succeed(requirement);
+                return Task.CompletedTask;
+            }
+        }
+        
+        return Task.CompletedTask;
+    }
+}
+```
+
+### 3. Backend Architecture
+
+#### Clean Architecture
+```
+IMaint.API                   // Presentation layer - API controllers, middleware, etc.
+IMaint.Application           // Application layer - services, commands, queries, validators
+IMaint.Domain                // Domain layer - entities, aggregates, domain services
+IMaint.Infrastructure        // Infrastructure layer - repositories, external services
+IMaint.Infrastructure.Data   // Data access layer - EF Core, migrations, repositories
+IMaint.Shared                // Shared components - DTOs, enums, helpers
+```
+
+#### Mediator Pattern (CQRS)
+- Commands for write operations
+- Queries for read operations
+- Handlers for processing commands and queries
+- Separation of read and write concerns
+- Validation pipeline
+- Transaction handling
+- Logging and performance monitoring
+
+#### CQRS Implementation Example
+```csharp
+// Command
+public class CompleteWorkOrderCommand : IRequest<Unit>
+{
+    public int Id { get; set; }
+    public string CompletionNotes { get; set; }
+    public DateTime CompletionDate { get; set; }
+    public List<TaskCompletionData> TaskCompletions { get; set; }
+}
+
+// Command Handler
+public class CompleteWorkOrderCommandHandler : 
+    IRequestHandler<CompleteWorkOrderCommand, Unit>
+{
+    private readonly IWorkOrderRepository _repository;
+    private readonly IUnitOfWork _unitOfWork;
+    
+    public CompleteWorkOrderCommandHandler(
+        IWorkOrderRepository repository,
+        IUnitOfWork unitOfWork)
+    {
+        _repository = repository;
+        _unitOfWork = unitOfWork;
+    }
+    
+    public async Task<Unit> Handle(
+        CompleteWorkOrderCommand request, 
+        CancellationToken cancellationToken)
+    {
+        // Get work order
+        var workOrder = await _repository.GetByIdAsync(request.Id);
+        if (workOrder == null)
+            throw new NotFoundException(nameof(WorkOrder), request.Id);
+            
+        // Check if completion is allowed
+        if (!workOrder.CanComplete())
+            throw new BusinessRuleViolationException("Work order cannot be completed in its current state");
+            
+        // Complete work order
+        workOrder.Complete(
+            request.CompletionDate, 
+            request.CompletionNotes,
+            request.TaskCompletions);
+            
+        // Save changes
+        await _unitOfWork.SaveChangesAsync(cancellationToken);
+        
+        return Unit.Value;
+    }
+}
+
+// Query
+public class GetWorkOrderDetailQuery : IRequest<WorkOrderDetailDto>
+{
+    public int Id { get; }
+    
+    public GetWorkOrderDetailQuery(int id)
+    {
+        Id = id;
+    }
+}
+
+// Query Handler
+public class GetWorkOrderDetailQueryHandler : 
+    IRequestHandler<GetWorkOrderDetailQuery, WorkOrderDetailDto>
+{
+    private readonly IWorkOrderRepository _repository;
+    private readonly IMapper _mapper;
+    
+    public GetWorkOrderDetailQueryHandler(
+        IWorkOrderRepository repository,
+        IMapper mapper)
+    {
+        _repository = repository;
+        _mapper = mapper;
+    }
+    
+    public async Task<WorkOrderDetailDto> Handle(
+        GetWorkOrderDetailQuery request, 
+        CancellationToken cancellationToken)
+    {
+        var workOrder = await _repository.GetByIdWithDetailsAsync(request.Id);
+        if (workOrder == null)
+            return null;
+            
+        return _mapper.Map<WorkOrderDetailDto>(workOrder);
+    }
+}
+```
+
+#### Service Layer Pattern
+- Business logic encapsulation
+- Transaction management
+- Cross-cutting concerns handling
+- Domain service coordination
+- API contract implementation
+- Event handling
+
+### 4. Data Persistence Strategy
+
+#### Entity Framework Core
+- Code-first approach with domain entities
+- Domain-driven design patterns
+- Fluent API configuration for complex relationships
+- Migration management with version control
+- Repository pattern implementation
+- Optimized query performance
+- Change tracking optimizations
+
+#### Entity Configuration Example
+```csharp
+public class WorkOrderConfiguration : IEntityTypeConfiguration<WorkOrder>
+{
+    public void Configure(EntityTypeBuilder<WorkOrder> builder)
+    {
+        builder.ToTable("WorkOrders");
+        
+        builder.HasKey(x => x.Id);
+        
+        builder.Property(x => x.WorkOrderNumber)
+            .HasMaxLength(20)
+            .IsRequired();
+            
+        builder.Property(x => x.Description)
+            .HasMaxLength(200)
+            .IsRequired();
+            
+        builder.HasOne(x => x.Status)
+            .WithMany()
+            .HasForeignKey(x => x.StatusId)
+            .OnDelete(DeleteBehavior.Restrict);
+            
+        builder.HasOne(x => x.Asset)
+            .WithMany(x => x.WorkOrders)
+            .HasForeignKey(x => x.AssetId)
+            .OnDelete(DeleteBehavior.Restrict);
+            
+        builder.HasOne(x => x.RequestedBy)
+            .WithMany()
+            .HasForeignKey(x => x.RequestedById)
+            .OnDelete(DeleteBehavior.Restrict);
+            
+        builder.HasOne(x => x.AssignedTo)
+            .WithMany()
+            .HasForeignKey(x => x.AssignedToId)
+            .OnDelete(DeleteBehavior.Restrict);
+            
+        builder.HasMany(x => x.AssetProcedures)
+            .WithOne(x => x.WorkOrder)
+            .HasForeignKey(x => x.WorkOrderId);
+            
+        builder.HasMany(x => x.StatusHistory)
+            .WithOne(x => x.WorkOrder)
+            .HasForeignKey(x => x.WorkOrderId);
+    }
+}
+```
+
+#### Repository Pattern Implementation
+```csharp
+public class WorkOrderRepository : IWorkOrderRepository
+{
+    private readonly ApplicationDbContext _context;
+    
+    public WorkOrderRepository(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+    
+    public async Task<WorkOrder> GetByIdAsync(int id)
+    {
+        return await _context.WorkOrders
+            .FindAsync(id);
+    }
+    
+    public async Task<WorkOrder> GetByIdWithDetailsAsync(int id)
+    {
+        return await _context.WorkOrders
+            .Include(x => x.Status)
+            .Include(x => x.Asset)
+            .Include(x => x.RequestedBy)
+            .Include(x => x.AssignedTo)
+            .Include(x => x.AssetProcedures)
+                .ThenInclude(x => x.Asset)
+            .Include(x => x.AssetProcedures)
+                .ThenInclude(x => x.Procedure)
+            .Include(x => x.AssetProcedures)
+                .ThenInclude(x => x.Tasks)
+            .Include(x => x.Parts)
+                .ThenInclude(x => x.Part)
+            .Include(x => x.Labor)
+                .ThenInclude(x => x.User)
+            .FirstOrDefaultAsync(x => x.Id == id);
+    }
+    
+    public async Task<IEnumerable<WorkOrder>> GetAllAsync(
+        Expression<Func<WorkOrder, bool>> filter = null,
+        Func<IQueryable<WorkOrder>, IOrderedQueryable<WorkOrder>> orderBy = null,
+        int? skip = null,
+        int? take = null)
+    {
+        IQueryable<WorkOrder> query = _context.WorkOrders;
+        
+        if (filter != null)
+            query = query.Where(filter);
+            
+        if (orderBy != null)
+            query = orderBy(query);
+            
+        if (skip.HasValue)
+            query = query.Skip(skip.Value);
+            
+        if (take.HasValue)
+            query = query.Take(take.Value);
+            
+        return await query.ToListAsync();
+    }
+    
+    public void Add(WorkOrder workOrder)
+    {
+        _context.WorkOrders.Add(workOrder);
+    }
+    
+    public void Update(WorkOrder workOrder)
+    {
+        _context.Entry(workOrder).State = EntityState.Modified;
+    }
+    
+    public void Delete(WorkOrder workOrder)
+    {
+        _context.WorkOrders.Remove(workOrder);
+    }
+}
+```
+
+#### Database Strategy
+- Primary SQL database (e.g., SQL Server, PostgreSQL)
+- Read/write segregation for high-volume operations
+- Caching strategy (Redis/in-memory)
+- Optimistic concurrency control
+- Query optimization
+- Database indexing strategy
+- Database partitioning for large datasets
+- Archive strategy for historical data
+
+#### Audit Trail
+- Comprehensive change tracking
+- User action logging
+- Historical data preservation
+- Security audit logging
+- System event tracking
+- Domain event recording
+- Immutable transaction logs
+- Analytics data collection
+
+### 5. Mobile/API Specific Features
+
+#### Offline Support
+- Offline data synchronization
+- Conflict resolution strategies
+- Local storage management
+- Background sync processes
+- Prioritized sync for critical data
+- Delta sync to minimize data transfer
+- Sync status indicators
+- Queue management for pending operations
+
+#### Push Notifications
+- Real-time status updates
+- Assignment notifications
+- Approval requests
+- Critical alerts
+- Token management
+- Notification preferences
+- Notification history
+- Grouped notifications
+
+#### File Handling
+- Secure file uploads/downloads
+- Image compression for mobile
+- Document storage strategies
+- Content delivery optimization
+- Attachment versioning
+- Image annotation tools
+- Document previews
+- Progressive loading for large files
+
+#### Geolocation Services
+- Location tracking for mobile users
+- Geofencing for work assignments
+- Proximity-based asset discovery
+- Route optimization
+- Map integration
+- Location history
+- Travel time estimation
+- Geographic reporting
+
+## Implementation Strategy
+
+### 1. Technology Stack
+
+#### Backend Core
+- ASP.NET Core 7.0+
+- Entity Framework Core 7.0+
+- AutoMapper
+- MediatR for CQRS
+- FluentValidation
+- Identity Server for auth
+- SignalR for real-time communication
+
+#### Database
+- Primary: SQL Server or PostgreSQL
+- Cache: Redis
+- Search: Elasticsearch (optional)
+- File Storage: Azure Blob Storage/S3
+
+#### DevOps & Infrastructure
+- Docker containers
+- Kubernetes orchestration
+- CI/CD pipelines (Azure DevOps/GitHub Actions)
+- Infrastructure as Code (Terraform/Pulumi)
+- Monitoring and logging (Application Insights/ELK)
+
+### 2. Implementation Phases
+
+#### Phase 1: Core Infrastructure
+- Base architecture setup
+- Authentication and authorization
+- Data access layer
+- Core API framework
+- Basic CRUD operations for core entities
+
+#### Phase 2: Business Logic Migration
+- Work order management
+- Asset management
+- Mobile-first API endpoints
+- Status workflow engine
+- File upload/download capabilities
+
+#### Phase 3: Advanced Features
+- Inventory and purchasing
+- Scheduling and planning
+- Reporting and analytics
+- Offline capabilities
+- Real-time notifications
+
+#### Phase 4: Integration & Optimization
+- External system integrations
+- Performance optimization
+- Advanced search capabilities
+- Mobile optimizations
+- Analytics and dashboards
+
+### 3. Business Logic Migration Strategy
+
+#### Rule Engine
+- Implement workflow and business rule engine
+- Define configurable rules for validation and processes
+- Support for complex condition evaluation
+- Status transition management
+- Notification triggers
+
+#### Status Workflow
+- Configurable state machines for entities
+- Status-based permissions and validations
+- Transition hooks for business logic
+- Historical status tracking
+- Mobile-friendly status updates
+
+#### Validation Framework
+- Declarative validation rules
+- Context-aware validation
+- Client and server validation synchronization
+- Internationalized error messages
+- Hierarchical validation support
+
+### 4. Mobile Optimization Strategy
+
+#### API Optimization
+- Minimal payload sizes
+- Compressed responses
+- Batched operations
+- Pagination for large datasets
+- Partial updates with PATCH
+
+#### Offline-First Approach
+- Local data storage
+- Synchronization queue
+- Conflict resolution
+- Background sync
+- Data prioritization
+
+#### Performance Considerations
+- Image resizing for mobile
+- Lazy loading strategies
+- Incremental loading
+- Connection quality adaptation
+- Battery-optimized operations
+
+## Security Considerations
+
+### 1. Data Security
+- Encryption at rest and in transit
+- PII data handling
+- Data anonymization for non-production
+- Secure deletion practices
+- Data backup strategies
+
+### 2. API Security
+- Rate limiting
+- API key management
+- IP restrictions
+- CORS configuration
+- Request validation
+
+### 3. Mobile Security
+- Secure local storage
+- Certificate pinning
+- Biometric authentication integration
+- Secure offline data
+- Automatic session timeout
+
+### 4. Compliance
+- Audit logging
+- Regulatory compliance tracking
+- Data retention policies
+- Access control documentation
+- Privacy policy enforcement
+
+## Migration Path
+
+### 1. Data Migration
+- Staged migration approach
+- Validation and verification steps
+- Historical data treatment
+- Reference data synchronization
+- Rollback strategies
+
+### 2. Legacy System Integration
+- API gateway for legacy integration
+- Temporary compatibility layer
+- Synchronized authentication
+- Data consistency management
+- Gradual feature transition
+
+### 3. User Transition
+- Phased user migration
+- Training and documentation
+- Parallel system operation
+- Feedback collection
+- Success metrics tracking
+
+## Monitoring and Observability
+
+### 1. Application Monitoring
+- Performance metrics
+- Error tracking
+- User experience monitoring
+- API usage statistics
+- Health checks
+
+### 2. Infrastructure Monitoring
+- Resource utilization
+- Scaling metrics
+- Database performance
+- Network latency
+- Service availability
+
+### 3. Business Metrics
+- Work order completion rates
+- System usage patterns
+- Mobile vs desktop usage
+- Offline operation metrics
+- User adoption tracking
+
+## Testing Strategy
+
+### 1. Automated Testing
+- Unit tests for business logic
+- Integration tests for API endpoints
+- E2E tests for critical workflows
+- UI automation for mobile apps
+- Performance testing
+
+### 2. Quality Assurance
+- Test-driven development
+- Continuous integration testing
+- User acceptance testing
+- Security penetration testing
+- Accessibility testing
+
+### 3. Mobile Testing
+- Cross-platform testing
+- Offline operation testing
+- Network condition simulation
+- Battery usage optimization
+- Device compatibility verification
+
+## Business Logic Implementation
+
+### 1. Work Order Management Workflows
+
+#### Work Order Lifecycle
+```
+1. Creation
+   - Manual creation through UI
+   - Auto-generation from work requests
+   - System-generated from preventive maintenance schedules
+   - Cloning from existing work orders
+
+2. Assignment
+   - Manual assignment to resources
+   - Auto-assignment based on skills and availability
+   - Team assignments for complex tasks
+
+3. Planning
+   - Parts reservation and procurement
+   - Resource scheduling
+   - Priority calculation (manual or algorithm-based)
+   - Dependency management
+
+4. Execution
+   - Status tracking and updates
+   - Time recording
+   - Part consumption
+   - Task completion documentation
+   - Progress reporting
+
+5. Completion
+   - Review and quality checks
+   - Formal signoff process
+   - Cost calculation and analysis
+   - Asset history updates
+   - Follow-up action items
+```
+
+#### Status Transition Logic
+```csharp
+public Boolean AllowedToChangeStatus(Int64 fromstatus, Int64 tostatus)
+{
+    if (fromstatus <= 0 || tostatus <= 0) return false;
+    if (fromstatus == tostatus) return true; // If changing to same status, allow it
+    if (Dto.CurrentRow == null) return false;
+
+    WorkOrderStatusRow statusrow = Dto.CurrentRow.StatusRow;
+    if (statusrow == null) return false;
+
+    // Check user profile permissions for this transition
+    return statusrow.ValidProfileWOStatusChange(Dto.SessionInfo, -1, fromstatus, tostatus);
+}
+
+public Boolean CompleteWO(WorkOrderRow worow, bool resetOnFail = true, bool doStatusChecks = true)
+{
+    // Logic for completing a work order, including validation, state transition, and event triggers
+    try {
+        // Validation checks
+        // Status transition
+        // Cost calculations
+        // Asset procedure updates
+        // History recording
+        // Notifications
+        
+        // Success
+        return true;
+    }
+    catch {
+        // Error handling
+        return false;
+    }
+}
+```
+
+#### Work Order-Asset-Procedure (WOAP) Relationship
+The system implements a complex relationship between work orders, assets, and procedures:
+- Each work order can have multiple asset-procedure combinations (WOAP)
+- Each WOAP records the specific maintenance procedure performed on a specific asset
+- WOAPs have their own status tracking and completion processes
+- Task sequencing is managed at the WOAP level
+- Parts and labor can be tracked at both work order and WOAP levels
+
+```csharp
+public Int64 DoesAPExist(Int64 assetPkey, Int64 procPkey, Boolean bAddIfNotFound)
+{
+    // Check if this asset-procedure combination already exists for this work order
+    // Add it if requested and not found
+    // Return the WOAP ID
+}
+```
+
+### 2. Inventory Management Workflows
+
+#### Inventory Transaction Types
+```
+1. Physical Inventory
+   - Physical count adjustments
+   - Cycle counting
+   - Annual inventory adjustments
+
+2. Issues and Returns
+   - Work order part issues
+   - Work order part returns
+   - Direct issues
+   - Direct returns
+
+3. Receipts and Returns
+   - Purchase order receipts
+   - Supplier returns
+   - Quality rejections
+
+4. Transfers
+   - Location transfers within warehouse
+   - Warehouse transfers
+   - Site transfers
+```
+
+#### Inventory Transaction Logic
+```csharp
+private static Boolean CreateWorkOrder(TriggerInfo tinfo, out Int64 woap_pkey, out Int64 woap_actual_pkey)
+{
+    // Logic to create actual WOAP Parts when inventory is issued against a work order
+    // Verifies the asset/procedure exists on the work order
+    // Creates the relationships and records the transaction
+}
+```
+
+### 3. Scheduling System
+
+#### Scheduling Engine
+The scheduling system handles several types of scheduling:
+- Preventive maintenance scheduling
+- Resource scheduling
+- Work order scheduling
+- Calendar management
+
+```csharp
+public void ProcessWorkOrdersInternal(DateTime dtCurrent)
+{
+    // Logic to create work orders from scheduled maintenance
+    // Steps:
+    // 1. Get work order prefix from site settings
+    // 2. Get default "open" work order status
+    // 3. Process proofs for this user
+    // 4. Apply combination logic based on configuration
+    // 5. Recalculate due dates after creation
+}
+```
+
+### 4. Security and Permission Model
+
+#### Multi-layered Security
+The system implements a sophisticated security model:
+- User authentication and authorization
+- Role-based access control
+- User profiles with specific permissions
+- Object-level security
+- Data-level security
+- Workflow state security (status-based permissions)
+
+```csharp
+private void UpdateWOStatusRules()
+{
+    // Updates the user profile work order status transition rules
+    // Controls which users can move work orders between which statuses
+}
+```
+
+### 5. Validation Framework
+
+#### Context-Aware Validation
+The system implements extensive validation rules:
+- Field-level validation
+- Record-level validation
+- Cross-entity validation
+- Business rule validation
+- Status transition validation
+
+```csharp
+// Validation example for work order completion
+if (wo.AreAnyAPLinesCompleted())
+{
+    _isLogicSettingStatus = true;
+    wo.CancelEdit("status");
+    wo.CancelEdit("date_cancelled");
+    _isLogicSettingStatus = false;
+    vm.ShowValidationPanelError("Work Order cannot be cancelled since at least one asset procedure line item on this WO has been completed.", ValidationErrorKind.InvalidRelatedData, Dto.CurrentRow, Dto.CurrentRow.Fields["status"]);
+    return;
+}
+```
+
+## Database Architecture
+
+### 1. Core Tables
+```
+imtbl_work_order - Work order master information
+imtbl_woap - Work order asset procedure relationships
+imtbl_woap_task - Work order asset procedure tasks
+imtbl_asset - Asset master information
+imtbl_asset_meter - Asset meters and readings
+imtbl_inventory - Inventory/part master information
+imtbl_inv_trans - Inventory transactions
+imtbl_location - Location master information
+imtbl_warehouse - Warehouse information
+imtbl_purchase_order - Purchase order master information
+imtbl_po_line - Purchase order line items
+imtbl_user - User information
+imtbl_work_request - Work request information
+imtbl_schedule - Scheduling information
+```
+
+### 2. Configuration Tables
+```
+imtbl_application_settings - Application configuration
+imtbl_site_properties - Site-specific settings
+imtbl_work_order_status - Work order status definitions
+imtbl_asset_status - Asset status definitions
+imtbl_po_status - Purchase order status definitions
+imtbl_user_profile - User profile settings
+```
+
+### 3. View Structure
+```
+imvw_work_order - Comprehensive work order view
+imvw_asset - Asset view with related information
+imvw_inventory - Inventory view with location information
+imvw_purchase_order - Purchase order view with supplier details
+imvw_parts_unavailable - View for checking part availability
+imvw_resource_availability - View for resource scheduling
+```
+
+### 4. Trigger System
+The database implements a robust trigger system for:
+- Data validation
+- Cross-table updates
+- Audit trailing
+- Status history recording
+- Relationship management
+- Automatic calculations (costs, dates, etc.)
+
+## Integration Framework
+
+### 1. External System Integration
+The system supports integration with:
+- ERP systems
+- Accounting systems
+- HR systems
+- Building management systems
+- Mobile devices
+- Barcode/RFID systems
+- Email/notification systems
+
+### 2. Integration Methods
+```
+- Direct database connections
+- Web services
+- File import/export
+- API endpoints
+- Message queues
+- Real-time and batch processing
+```
+
