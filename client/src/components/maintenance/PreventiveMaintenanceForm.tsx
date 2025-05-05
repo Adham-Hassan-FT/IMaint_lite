@@ -1,25 +1,21 @@
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { insertWorkOrderSchema } from "@shared/schema";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
+import * as z from "zod";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Checkbox } from "@/components/ui/checkbox";
+import { 
   Form,
   FormControl,
   FormDescription,
   FormField,
   FormItem,
   FormLabel,
-  FormMessage,
+  FormMessage
 } from "@/components/ui/form";
 import {
   Select,
@@ -28,44 +24,38 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, CheckCircle } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Checkbox } from "@/components/ui/checkbox";
-import { format, addMonths } from "date-fns";
-import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { CalendarIcon, X } from "lucide-react";
+import { format } from "date-fns";
+import { AssetWithDetails, User } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { useToast } from "@/hooks/use-toast";
 
-// Time periods for recurring maintenance
-const recurringOptions = [
-  { value: "daily", label: "Daily" },
-  { value: "weekly", label: "Weekly" },
-  { value: "biweekly", label: "Bi-Weekly" },
-  { value: "monthly", label: "Monthly" },
-  { value: "quarterly", label: "Quarterly" },
-  { value: "semiannual", label: "Semi-Annual" },
-  { value: "annual", label: "Annual" },
-];
-
-// Form schema
+// Form schema for preventive maintenance
 const formSchema = z.object({
-  assetId: z.number(),
-  maintenanceType: z.string(),
   description: z.string().min(5, "Description must be at least 5 characters"),
+  assetId: z.number().positive("Please select an asset"),
+  priority: z.string(),
+  duration: z.number().positive("Duration must be greater than 0"),
+  maintenanceType: z.string(),
   startDate: z.date(),
   recurring: z.boolean().default(false),
-  recurringPeriod: z.string().optional(),
-  occurrences: z.string().optional().transform(val => val ? parseInt(val) : undefined),
-  technicians: z.array(z.number()).optional(),
-  priority: z.string().default("medium"),
-  duration: z.string().transform(val => parseFloat(val) || 1),
   notes: z.string().optional(),
+  recurringPeriod: z.string().optional(),
+  occurrences: z.number().optional(),
+  technicians: z.array(z.number()).optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -75,110 +65,125 @@ interface PreventiveMaintenanceFormProps {
   onSubmitSuccess: () => void;
 }
 
-export default function PreventiveMaintenanceForm({ 
-  onClose, 
-  onSubmitSuccess 
-}: PreventiveMaintenanceFormProps) {
+export default function PreventiveMaintenanceForm({ onClose, onSubmitSuccess }: PreventiveMaintenanceFormProps) {
   const { toast } = useToast();
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [open, setOpen] = useState(true);
   
   // Get assets for dropdown
-  const { data: assets, isLoading: isLoadingAssets } = useQuery({
-    queryKey: ['/api/assets'],
+  const { data: assets, isLoading: isLoadingAssets } = useQuery<AssetWithDetails[]>({
+    queryKey: ['/api/assets/details'],
   });
-
-  // Get work order types for dropdown
-  const { data: workOrderTypes, isLoading: isLoadingTypes } = useQuery({
-    queryKey: ['/api/work-order-types'],
-  });
-
+  
   // Get users for technician assignment
-  const { data: users, isLoading: isLoadingUsers } = useQuery({
+  const { data: users, isLoading: isLoadingUsers } = useQuery<User[]>({
     queryKey: ['/api/users'],
   });
-
-  // Create mutation for scheduling PM
-  const schedulePMMutation = useMutation({
+  
+  // Form definition
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      description: "",
+      assetId: 0,
+      priority: "medium",
+      duration: 1,
+      maintenanceType: "inspection",
+      startDate: new Date(),
+      recurring: false,
+      notes: "",
+      recurringPeriod: "monthly",
+      occurrences: 12,
+      technicians: [],
+    },
+  });
+  
+  // Watch recurring field to conditionally show additional fields
+  const isRecurring = form.watch("recurring");
+  
+  // Submit mutation
+  const submitMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      // In a real app, this would create maintenance schedule entries
-      // Here we'll simulate it by creating a work order for the first occurrence
-      
-      const workOrderData = {
-        workOrderNumber: `PM-${Math.floor(1000 + Math.random() * 9000)}`,
-        title: `Preventive Maintenance - ${data.maintenanceType}`,
+      // In a real app, this would create a preventive maintenance schedule record
+      // For now, simulate creating a work order instead
+      const response = await apiRequest("POST", "/api/work-orders", {
+        title: `Preventive Maintenance: ${data.description}`,
         description: data.description,
-        status: "scheduled",
-        priority: data.priority,
         assetId: data.assetId,
-        requestedById: 1, // Default to admin user
-        assignedToId: data.technicians?.[0], // Assign to first technician
-        dateRequested: new Date(),
+        priority: data.priority,
+        status: "pending",
         dateNeeded: data.startDate,
-        estimatedHours: data.duration,
-        typeId: workOrderTypes?.find(t => t.name === "Preventive")?.id || 1,
-      };
-      
-      await apiRequest("POST", "/api/work-orders", workOrderData);
+        estimatedDuration: data.duration.toString(),
+        notes: data.notes || null,
+      });
+      return response;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/work-orders/details'] });
       toast({
-        title: "Maintenance Scheduled",
-        description: "The preventive maintenance has been scheduled successfully",
+        title: "Maintenance scheduled",
+        description: "Preventive maintenance has been scheduled successfully",
       });
+      queryClient.invalidateQueries({ queryKey: ['/api/work-orders/details'] });
+      setOpen(false);
       onSubmitSuccess();
     },
     onError: (error) => {
       toast({
         variant: "destructive",
         title: "Failed to schedule maintenance",
-        description: error.message || "An unexpected error occurred",
+        description: "An error occurred while scheduling maintenance. Please try again.",
       });
+      console.error(error);
     },
   });
-
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      maintenanceType: "General Inspection",
-      description: "",
-      startDate: new Date(),
-      recurring: true,
-      recurringPeriod: "monthly",
-      occurrences: "12",
-      duration: "1",
-      priority: "medium",
-      notes: "",
-    },
-  });
-
-  // Watch form values
-  const isRecurring = form.watch("recurring");
-  const selectedAssetId = form.watch("assetId");
   
-  // Selected asset details
-  const selectedAsset = selectedAssetId && assets?.find(a => a.id === selectedAssetId);
-
+  // Form submission handler
   const onSubmit = async (data: FormValues) => {
-    setIsSubmitting(true);
-    try {
-      await schedulePMMutation.mutateAsync(data);
-    } finally {
-      setIsSubmitting(false);
-    }
+    submitMutation.mutate(data);
   };
-
+  
+  // Handle dialog close
+  const handleClose = () => {
+    setOpen(false);
+    onClose();
+  };
+  
   return (
-    <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Schedule Preventive Maintenance</DialogTitle>
           <DialogDescription>
-            Create a preventive maintenance schedule for an asset
+            Create a new preventive maintenance task for an asset
           </DialogDescription>
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            className="absolute right-4 top-4" 
+            onClick={handleClose}
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </DialogHeader>
+        
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Quarterly HVAC Inspection" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Brief description of the maintenance task
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
             <FormField
               control={form.control}
               name="assetId"
@@ -186,24 +191,20 @@ export default function PreventiveMaintenanceForm({
                 <FormItem>
                   <FormLabel>Asset</FormLabel>
                   <Select 
-                    onValueChange={(value) => field.onChange(Number(value))} 
-                    value={field.value?.toString()}
+                    onValueChange={(value) => field.onChange(parseInt(value))}
+                    defaultValue={field.value.toString()}
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select an asset" />
+                        <SelectValue placeholder="Select asset" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {isLoadingAssets ? (
-                        <SelectItem value="loading" disabled>Loading...</SelectItem>
-                      ) : (
-                        assets?.map((asset) => (
-                          <SelectItem key={asset.id} value={asset.id.toString()}>
-                            {asset.assetNumber} - {asset.description}
-                          </SelectItem>
-                        ))
-                      )}
+                      {assets?.map(asset => (
+                        <SelectItem key={asset.id} value={asset.id.toString()}>
+                          {asset.assetNumber} - {asset.description}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -211,30 +212,7 @@ export default function PreventiveMaintenanceForm({
               )}
             />
             
-            {selectedAsset && (
-              <div className="bg-muted p-3 rounded-md text-sm">
-                <div className="flex items-center space-x-2 mb-1">
-                  <CheckCircle className="h-4 w-4 text-green-600" />
-                  <span className="font-medium">Asset Details</span>
-                </div>
-                <div className="pl-6 space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Asset Type:</span>
-                    <span>{selectedAsset.type?.name || 'Not specified'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Status:</span>
-                    <span className="capitalize">{selectedAsset.status.replace('_', ' ')}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Location:</span>
-                    <span>{selectedAsset.location || 'Not specified'}</span>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="maintenanceType"
@@ -242,8 +220,8 @@ export default function PreventiveMaintenanceForm({
                   <FormItem>
                     <FormLabel>Maintenance Type</FormLabel>
                     <Select 
-                      onValueChange={field.onChange} 
-                      value={field.value}
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -251,12 +229,12 @@ export default function PreventiveMaintenanceForm({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="General Inspection">General Inspection</SelectItem>
-                        <SelectItem value="Lubrication">Lubrication</SelectItem>
-                        <SelectItem value="Parts Replacement">Parts Replacement</SelectItem>
-                        <SelectItem value="Calibration">Calibration</SelectItem>
-                        <SelectItem value="Cleaning">Cleaning</SelectItem>
-                        <SelectItem value="Safety Check">Safety Check</SelectItem>
+                        <SelectItem value="inspection">Inspection</SelectItem>
+                        <SelectItem value="service">Service/Lubrication</SelectItem>
+                        <SelectItem value="calibration">Calibration</SelectItem>
+                        <SelectItem value="replacement">Part Replacement</SelectItem>
+                        <SelectItem value="testing">Testing</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -271,8 +249,8 @@ export default function PreventiveMaintenanceForm({
                   <FormItem>
                     <FormLabel>Priority</FormLabel>
                     <Select 
-                      onValueChange={field.onChange} 
-                      value={field.value}
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -292,25 +270,7 @@ export default function PreventiveMaintenanceForm({
               />
             </div>
             
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Detailed maintenance tasks to be performed" 
-                      className="min-h-[100px]" 
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="startDate"
@@ -322,10 +282,7 @@ export default function PreventiveMaintenanceForm({
                         <FormControl>
                           <Button
                             variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-left font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
+                            className="w-full pl-3 text-left font-normal"
                           >
                             {field.value ? (
                               format(field.value, "PPP")
@@ -341,9 +298,6 @@ export default function PreventiveMaintenanceForm({
                           mode="single"
                           selected={field.value}
                           onSelect={field.onChange}
-                          disabled={(date) =>
-                            date < new Date(new Date().setHours(0, 0, 0, 0))
-                          }
                           initialFocus
                         />
                       </PopoverContent>
@@ -358,19 +312,16 @@ export default function PreventiveMaintenanceForm({
                 name="duration"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Estimated Hours</FormLabel>
+                    <FormLabel>Duration (hours)</FormLabel>
                     <FormControl>
                       <Input 
                         type="number" 
-                        min="0.5" 
-                        step="0.5" 
-                        placeholder="1" 
-                        {...field} 
+                        min={0.5}
+                        step={0.5}
+                        {...field}
+                        onChange={(e) => field.onChange(parseFloat(e.target.value))}
                       />
                     </FormControl>
-                    <FormDescription>
-                      Expected time to complete
-                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -381,77 +332,79 @@ export default function PreventiveMaintenanceForm({
               control={form.control}
               name="recurring"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">
-                      Recurring Maintenance
-                    </FormLabel>
-                    <FormDescription>
-                      Schedule this maintenance to repeat at regular intervals
-                    </FormDescription>
-                  </div>
+                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
                   <FormControl>
-                    <Switch
+                    <Checkbox
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
+                  <div className="space-y-1 leading-none">
+                    <FormLabel>Recurring Maintenance</FormLabel>
+                    <FormDescription>
+                      Schedule this maintenance to occur repeatedly
+                    </FormDescription>
+                  </div>
                 </FormItem>
               )}
             />
             
             {isRecurring && (
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="recurringPeriod"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Repeat Every</FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
-                        value={field.value}
-                      >
+              <div className="border rounded-md p-4 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="recurringPeriod"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Recurrence Period</FormLabel>
+                        <Select 
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select period" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="daily">Daily</SelectItem>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                            <SelectItem value="quarterly">Quarterly</SelectItem>
+                            <SelectItem value="semiannually">Semi-annually</SelectItem>
+                            <SelectItem value="annually">Annually</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="occurrences"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Number of Occurrences</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select interval" />
-                          </SelectTrigger>
+                          <Input 
+                            type="number" 
+                            min={1}
+                            max={100}
+                            {...field}
+                            onChange={(e) => field.onChange(parseInt(e.target.value))}
+                          />
                         </FormControl>
-                        <SelectContent>
-                          {recurringOptions.map(option => (
-                            <SelectItem key={option.value} value={option.value}>
-                              {option.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="occurrences"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Number of Occurrences</FormLabel>
-                      <FormControl>
-                        <Input 
-                          type="number" 
-                          min="1" 
-                          max="100" 
-                          placeholder="12" 
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        How many times to repeat
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormDescription>
+                          How many times this should repeat
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
             )}
             
@@ -460,38 +413,53 @@ export default function PreventiveMaintenanceForm({
               name="technicians"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Assign Technicians</FormLabel>
-                  <FormDescription>
-                    Select technicians to assign to this maintenance
-                  </FormDescription>
-                  <div className="space-y-2 mt-2">
-                    {isLoadingUsers ? (
-                      <div className="text-sm text-muted-foreground">Loading technicians...</div>
-                    ) : (
-                      users?.filter(user => user.role === 'technician').map(tech => (
-                        <div key={tech.id} className="flex items-center space-x-2">
-                          <Checkbox 
-                            id={`tech-${tech.id}`} 
-                            checked={field.value?.includes(tech.id)}
-                            onCheckedChange={(checked) => {
-                              const currentValues = field.value || [];
-                              if (checked) {
-                                field.onChange([...currentValues, tech.id]);
-                              } else {
-                                field.onChange(currentValues.filter(id => id !== tech.id));
-                              }
-                            }}
-                          />
-                          <label 
-                            htmlFor={`tech-${tech.id}`}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                          >
+                  <FormLabel>Assign Technicians (Optional)</FormLabel>
+                  <Select 
+                    onValueChange={(value) => {
+                      const id = parseInt(value);
+                      if (!field.value?.includes(id)) {
+                        field.onChange([...(field.value || []), id]);
+                      }
+                    }}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select technicians" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {users?.map(user => (
+                        <SelectItem key={user.id} value={user.id.toString()}>
+                          {user.fullName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {field.value && field.value.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {field.value.map(techId => {
+                        const tech = users?.find(u => u.id === techId);
+                        return tech ? (
+                          <div key={tech.id} className="flex items-center bg-secondary rounded-full px-3 py-1 text-sm">
                             {tech.fullName}
-                          </label>
-                        </div>
-                      ))
-                    )}
-                  </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-4 w-4 p-0 ml-1"
+                              onClick={() => {
+                                field.onChange(field.value?.filter(id => id !== tech.id));
+                              }}
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : null;
+                      })}
+                    </div>
+                  )}
+                  <FormDescription>
+                    Assign one or more technicians to this maintenance task
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -502,11 +470,12 @@ export default function PreventiveMaintenanceForm({
               name="notes"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Additional Notes</FormLabel>
+                  <FormLabel>Notes (Optional)</FormLabel>
                   <FormControl>
                     <Textarea 
-                      placeholder="Any additional instructions or requirements" 
-                      {...field} 
+                      placeholder="Additional instructions or notes"
+                      rows={3}
+                      {...field}
                     />
                   </FormControl>
                   <FormMessage />
@@ -515,12 +484,14 @@ export default function PreventiveMaintenanceForm({
             />
             
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={handleClose}>
+                Cancel
+              </Button>
               <Button 
                 type="submit" 
-                disabled={isSubmitting || !selectedAssetId}
+                disabled={submitMutation.isPending}
               >
-                {isSubmitting ? "Scheduling..." : "Schedule Maintenance"}
+                {submitMutation.isPending ? "Scheduling..." : "Schedule Maintenance"}
               </Button>
             </DialogFooter>
           </form>
