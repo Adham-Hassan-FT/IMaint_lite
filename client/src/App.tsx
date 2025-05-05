@@ -11,6 +11,7 @@ import Assets from "@/pages/Assets";
 import Inventory from "@/pages/Inventory";
 import Resources from "@/pages/Resources";
 import Scanner from "@/pages/Scanner";
+import Maintenance from "@/pages/Maintenance";
 import Login from "@/pages/Login";
 import { useEffect, useState } from "react";
 import { apiRequest } from "./lib/queryClient";
@@ -55,6 +56,7 @@ function Router() {
         <Route path="/inventory" component={Inventory} />
         <Route path="/resources" component={Resources} />
         <Route path="/scanner" component={Scanner} />
+        <Route path="/maintenance" component={Maintenance} />
         <Route component={NotFound} />
       </Switch>
     </Layout>

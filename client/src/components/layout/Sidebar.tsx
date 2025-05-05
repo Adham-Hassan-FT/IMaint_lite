@@ -9,7 +9,8 @@ import {
   Truck, 
   Users, 
   Barcode,
-  LogOut
+  LogOut,
+  CalendarDays
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -51,6 +52,11 @@ export default function Sidebar({ className }: SidebarProps) {
       title: "Work Orders",
       icon: <ClipboardList className="mr-2 h-4 w-4" />,
       path: "/work-orders"
+    },
+    {
+      title: "Preventive Maintenance",
+      icon: <CalendarDays className="mr-2 h-4 w-4" />,
+      path: "/maintenance"
     },
     {
       title: "Assets",
