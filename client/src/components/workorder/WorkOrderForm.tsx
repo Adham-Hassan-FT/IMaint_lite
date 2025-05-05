@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { insertWorkOrderSchema, workOrderPriorityEnum, workOrderStatusEnum } from "@shared/schema";
+import { insertWorkOrderSchema, workOrderPriorityEnum, workOrderStatusEnum, WorkOrderType, Asset, User } from "@shared/schema";
 import {
   Dialog,
   DialogContent,
@@ -61,17 +61,17 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Get work order types for dropdown
-  const { data: workOrderTypes, isLoading: isLoadingTypes } = useQuery({
+  const { data: workOrderTypes = [], isLoading: isLoadingTypes } = useQuery<WorkOrderType[]>({
     queryKey: ['/api/work-order-types'],
   });
 
   // Get assets for dropdown
-  const { data: assets, isLoading: isLoadingAssets } = useQuery({
+  const { data: assets = [], isLoading: isLoadingAssets } = useQuery<Asset[]>({
     queryKey: ['/api/assets'],
   });
 
   // Get users for dropdown
-  const { data: users, isLoading: isLoadingUsers } = useQuery({
+  const { data: users = [], isLoading: isLoadingUsers } = useQuery<User[]>({
     queryKey: ['/api/users'],
   });
 
@@ -103,6 +103,22 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
   // Wait for data to load before initializing the form
   const [formInitialized, setFormInitialized] = useState(false);
   
+  // Initialize form with basic defaults
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      workOrderNumber: uniqueWorkOrderNumber,
+      title: "",
+      description: "",
+      status: "requested",
+      priority: "medium",
+      dateRequested: new Date(),
+      assetId: 1,
+      typeId: 1,
+      requestedById: 1,
+    },
+  });
+  
   useEffect(() => {
     // Wait for data to be loaded before initializing form with default values
     if (!isLoadingTypes && !isLoadingAssets && !isLoadingUsers && !formInitialized) {
@@ -126,28 +142,28 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
       
       setFormInitialized(true);
     }
-  }, [isLoadingTypes, isLoadingAssets, isLoadingUsers, assets, workOrderTypes, users, formInitialized]);
-  
-  // Initialize form with basic defaults
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      workOrderNumber: uniqueWorkOrderNumber,
-      title: "",
-      description: "",
-      status: "requested",
-      priority: "medium",
-      dateRequested: new Date(),
-      assetId: 1,
-      typeId: 1,
-      requestedById: 1,
-    },
-  });
+  }, [isLoadingTypes, isLoadingAssets, isLoadingUsers, assets, workOrderTypes, users, formInitialized, form]);
 
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true);
     try {
-      await createWorkOrderMutation.mutateAsync(data);
+      console.log('Submitting work order data:', data);
+      // Ensure all required IDs are numbers
+      const formattedData = {
+        ...data,
+        typeId: Number(data.typeId),
+        assetId: Number(data.assetId),
+        requestedById: Number(data.requestedById),
+        assignedToId: data.assignedToId ? Number(data.assignedToId) : undefined
+      };
+      await createWorkOrderMutation.mutateAsync(formattedData);
+    } catch (error) {
+      console.error('Error submitting work order:', error);
+      toast({
+        variant: "destructive",
+        title: "Failed to create work order",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+      });
     } finally {
       setIsSubmitting(false);
     }
