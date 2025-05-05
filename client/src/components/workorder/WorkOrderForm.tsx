@@ -97,15 +97,26 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
     },
   });
 
+  // Generate unique work order number
+  const uniqueWorkOrderNumber = `WO-${Math.floor(1000 + Math.random() * 9000)}`;
+  
+  // Set up default values properly
+  const defaultAssetId = 1;
+  const defaultTypeId = 1;
+  const defaultRequestedById = 1;
+  
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      workOrderNumber: `WO-${Math.floor(1000 + Math.random() * 9000)}`,
+      workOrderNumber: uniqueWorkOrderNumber,
       title: "",
       description: "",
       status: "requested",
       priority: "medium",
       dateRequested: new Date(),
+      assetId: defaultAssetId,
+      typeId: defaultTypeId,
+      requestedById: defaultRequestedById,
     },
   });
 
@@ -357,7 +368,7 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="">Not Assigned</SelectItem>
+                        <SelectItem value="0">Not Assigned</SelectItem>
                         {isLoadingUsers ? (
                           <SelectItem value="loading" disabled>Loading...</SelectItem>
                         ) : (

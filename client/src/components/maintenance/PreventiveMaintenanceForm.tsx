@@ -79,12 +79,15 @@ export default function PreventiveMaintenanceForm({ onClose, onSubmitSuccess }: 
     queryKey: ['/api/users'],
   });
   
+  // Initialize form with default values
+  const defaultAssetId = assets && assets.length > 0 ? assets[0].id : 1;
+  
   // Form definition
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       description: "",
-      assetId: 0,
+      assetId: defaultAssetId,
       priority: "medium",
       duration: 1,
       maintenanceType: "inspection",
