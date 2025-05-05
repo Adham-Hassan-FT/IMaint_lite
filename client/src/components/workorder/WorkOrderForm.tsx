@@ -148,22 +148,33 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
     setIsSubmitting(true);
     try {
       console.log('Submitting work order data:', data);
-      // Ensure all required IDs are numbers
-      const formattedData = {
+      
+      // We need to send the data with proper types
+      // The API expects Date objects, not strings
+      await createWorkOrderMutation.mutateAsync({
         ...data,
         typeId: Number(data.typeId),
         assetId: Number(data.assetId),
         requestedById: Number(data.requestedById),
-        assignedToId: data.assignedToId ? Number(data.assignedToId) : undefined
-      };
-      await createWorkOrderMutation.mutateAsync(formattedData);
-    } catch (error) {
-      console.error('Error submitting work order:', error);
-      toast({
-        variant: "destructive",
-        title: "Failed to create work order",
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        assignedToId: data.assignedToId ? Number(data.assignedToId) : undefined,
       });
+    } catch (error: any) {
+      console.error('Error submitting work order:', error);
+      // Add more detailed error handling
+      if (error.response && error.response.data) {
+        console.error('Server validation errors:', error.response.data);
+        toast({
+          variant: "destructive",
+          title: "Failed to create work order",
+          description: error.response.data.message || "Validation error",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Failed to create work order",
+          description: error instanceof Error ? error.message : "An unexpected error occurred",
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }
