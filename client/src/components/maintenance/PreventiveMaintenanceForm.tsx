@@ -200,8 +200,8 @@ export default function PreventiveMaintenanceForm({ onClose, onSubmitSuccess }: 
                 <FormItem>
                   <FormLabel>Asset</FormLabel>
                   <Select 
-                    onValueChange={(value) => field.onChange(parseInt(value))}
-                    defaultValue={field.value.toString()}
+                    onValueChange={(value) => value === "none" ? field.onChange(null) : field.onChange(parseInt(value))}
+                    value={field.value?.toString() || "none"}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -209,6 +209,7 @@ export default function PreventiveMaintenanceForm({ onClose, onSubmitSuccess }: 
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
                       {assets?.map(asset => (
                         <SelectItem key={asset.id} value={asset.id.toString()}>
                           {asset.assetNumber} - {asset.description}
