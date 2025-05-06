@@ -22,8 +22,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, MoreVertical, Users, Calendar, ClipboardList } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import WorkOrderAssignment from "./WorkOrderAssignment";
 
 export default function ResourceList() {
+  const [selectedUser, setSelectedUser] = useState<{ id: number; name: string } | null>(null);
+  const [showAssignmentDialog, setShowAssignmentDialog] = useState(false);
+  
   const { data: users, isLoading, isError } = useQuery<User[]>({
     queryKey: ['/api/users'],
   });
@@ -32,6 +36,16 @@ export default function ResourceList() {
   const { data: workOrders } = useQuery({
     queryKey: ['/api/work-orders/details'],
   });
+  
+  const handleOpenAssignWorkOrder = (userId: number, userName: string) => {
+    setSelectedUser({ id: userId, name: userName });
+    setShowAssignmentDialog(true);
+  };
+  
+  const handleCloseAssignWorkOrder = () => {
+    setShowAssignmentDialog(false);
+    setSelectedUser(null);
+  };
 
   if (isError) {
     return (
@@ -122,7 +136,9 @@ export default function ResourceList() {
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem>View Profile</DropdownMenuItem>
-                      <DropdownMenuItem>Assign Work</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handleOpenAssignWorkOrder(user.id, user.fullName)}>
+                        Assign Work
+                      </DropdownMenuItem>
                       <DropdownMenuItem>Schedule</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -149,7 +165,11 @@ export default function ResourceList() {
                 </div>
               </CardContent>
               <CardFooter>
-                <Button variant="outline" className="w-full">
+                <Button 
+                  variant="outline" 
+                  className="w-full"
+                  onClick={() => handleOpenAssignWorkOrder(user.id, user.fullName)}
+                >
                   <ClipboardList className="mr-2 h-4 w-4" />
                   Assign Work Order
                 </Button>
@@ -172,6 +192,16 @@ export default function ResourceList() {
             Add Resource
           </Button>
         </div>
+      )}
+      
+      {/* Work Order Assignment Dialog */}
+      {selectedUser && (
+        <WorkOrderAssignment
+          isOpen={showAssignmentDialog}
+          onClose={handleCloseAssignWorkOrder}
+          userId={selectedUser.id}
+          userName={selectedUser.name}
+        />
       )}
     </div>
   );

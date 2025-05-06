@@ -122,7 +122,7 @@ export default function WorkOrderAssignment({ isOpen, onClose, userId, userName 
                               {workOrder.status.charAt(0).toUpperCase() + workOrder.status.slice(1)}
                             </Badge>
                             <span className="text-xs text-muted-foreground">
-                              {formatDate(workOrder.scheduledDate)}
+                              {formatDate(workOrder.dateScheduled)}
                             </span>
                           </div>
                         </div>
