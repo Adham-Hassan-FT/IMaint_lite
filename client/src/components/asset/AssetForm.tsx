@@ -217,8 +217,8 @@ export default function AssetForm({ onClose, onSubmitSuccess }: AssetFormProps) 
                 <FormItem>
                   <FormLabel>Parent Asset (Optional)</FormLabel>
                   <Select 
-                    onValueChange={(value) => field.onChange(Number(value))} 
-                    value={field.value?.toString()}
+                    onValueChange={(value) => field.onChange(value === "none" ? null : Number(value))} 
+                    value={field.value?.toString() || "none"}
                   >
                     <FormControl>
                       <SelectTrigger>
@@ -226,7 +226,7 @@ export default function AssetForm({ onClose, onSubmitSuccess }: AssetFormProps) 
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem value="none">None</SelectItem>
                       {isLoadingAssets ? (
                         <SelectItem value="loading" disabled>Loading...</SelectItem>
                       ) : (
