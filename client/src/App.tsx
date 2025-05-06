@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Layout from "@/components/layout/Layout";
 import Dashboard from "@/pages/Dashboard";
 import WorkOrders from "@/pages/WorkOrders";
+import WorkRequests from "@/pages/WorkRequests";
 import Assets from "@/pages/Assets";
 import Inventory from "@/pages/Inventory";
 import Resources from "@/pages/Resources";
@@ -52,6 +53,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/work-orders" component={WorkOrders} />
+        <Route path="/work-requests" component={WorkRequests} />
         <Route path="/assets" component={Assets} />
         <Route path="/inventory" component={Inventory} />
         <Route path="/resources" component={Resources} />

@@ -16,7 +16,7 @@ import {
   MapPin,
   Building,
   User,
-  Tool,
+  Wrench,
   Calendar,
   ArrowRightCircle,
 } from "lucide-react";
@@ -202,7 +202,7 @@ export default function WorkRequestDetails({
                 {workRequest.asset?.status && (
                   <div>
                     <dt className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-                      <Tool className="h-4 w-4" />
+                      <Wrench className="h-4 w-4" />
                       Asset Status
                     </dt>
                     <dd>
