@@ -106,23 +106,21 @@ export default function PreventiveMaintenanceForm({ onClose, onSubmitSuccess }: 
   // Submit mutation
   const submitMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      // In a real app, this would create a preventive maintenance schedule record
-      // For now, simulate creating a work order instead
-      
-      // Generate a unique work order number
-      const workOrderNumber = `PM-${Date.now().toString().slice(-6)}`;
-      
-      const response = await apiRequest("POST", "/api/work-orders", {
-        workOrderNumber: workOrderNumber,
-        title: `Preventive Maintenance: ${data.description}`,
+      // Create a preventive maintenance schedule
+      const response = await apiRequest("POST", "/api/preventive-maintenance", {
+        title: data.description, // Using description as title
         description: data.description,
-        assetId: data.assetId,
+        assetId: data.assetId === -1 ? null : data.assetId, // Handle "None" selection
         priority: data.priority,
-        status: "requested",
-        dateNeeded: data.startDate,
-        dateRequested: new Date(),
-        estimatedHours: data.duration.toString(),
+        maintenanceType: data.maintenanceType,
+        startDate: data.startDate,
+        duration: data.duration,
+        isRecurring: data.recurring,
+        recurringPeriod: data.recurring ? data.recurringPeriod : null,
+        occurrences: data.recurring ? data.occurrences : null,
         notes: data.notes || null,
+        technicians: data.technicians,
+        generateWorkOrdersImmediately: true // Generate work orders right away
       });
       return response;
     },
@@ -131,6 +129,7 @@ export default function PreventiveMaintenanceForm({ onClose, onSubmitSuccess }: 
         title: "Maintenance scheduled",
         description: "Preventive maintenance has been scheduled successfully",
       });
+      queryClient.invalidateQueries({ queryKey: ['/api/preventive-maintenance/details'] });
       queryClient.invalidateQueries({ queryKey: ['/api/work-orders/details'] });
       setOpen(false);
       onSubmitSuccess();

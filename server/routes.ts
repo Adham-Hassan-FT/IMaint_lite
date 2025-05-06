@@ -11,7 +11,9 @@ import {
   insertWorkOrderTypeSchema, InsertWorkOrderType,
   insertWorkOrderSchema, InsertWorkOrder,
   insertWorkOrderLaborSchema, InsertWorkOrderLabor,
-  insertWorkOrderPartSchema, InsertWorkOrderPart
+  insertWorkOrderPartSchema, InsertWorkOrderPart,
+  insertWorkRequestSchema, InsertWorkRequest,
+  insertPreventiveMaintenanceSchema, InsertPreventiveMaintenance
 } from "@shared/schema";
 import session from "express-session";
 import MemoryStore from "memorystore";
@@ -786,6 +788,369 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
     } catch (error) {
       console.error('Barcode scan error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  // Work Requests routes
+  app.get('/api/work-requests', async (req, res) => {
+    try {
+      const workRequests = await storage.listWorkRequests();
+      res.json(workRequests);
+    } catch (error) {
+      console.error('List work requests error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/work-requests/details', async (req, res) => {
+    try {
+      const workRequests = await storage.listWorkRequestsWithDetails();
+      res.json(workRequests);
+    } catch (error) {
+      console.error('List work requests with details error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/work-requests/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid work request ID' });
+      }
+      
+      const workRequest = await storage.getWorkRequest(id);
+      
+      if (!workRequest) {
+        return res.status(404).json({ message: 'Work request not found' });
+      }
+      
+      res.json(workRequest);
+    } catch (error) {
+      console.error('Get work request error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/work-requests/:id/details', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid work request ID' });
+      }
+      
+      const workRequest = await storage.getWorkRequestDetails(id);
+      
+      if (!workRequest) {
+        return res.status(404).json({ message: 'Work request not found' });
+      }
+      
+      res.json(workRequest);
+    } catch (error) {
+      console.error('Get work request details error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/work-requests', authenticate, async (req, res) => {
+    try {
+      // Convert date strings to Date objects
+      const requestData = { ...req.body };
+      if (requestData.dateRequested && typeof requestData.dateRequested === 'string') {
+        requestData.dateRequested = new Date(requestData.dateRequested);
+      }
+      if (requestData.dateNeeded && typeof requestData.dateNeeded === 'string') {
+        requestData.dateNeeded = new Date(requestData.dateNeeded);
+      }
+      
+      // Set requested by ID to current user if not specified
+      if (!requestData.requestedById && req.session.userId) {
+        requestData.requestedById = req.session.userId;
+      }
+      
+      // Generate a request number if not provided
+      if (!requestData.requestNumber) {
+        const currentCount = (await storage.listWorkRequests()).length;
+        requestData.requestNumber = `WR-${String(currentCount + 1).padStart(3, '0')}`;
+      }
+      
+      const validatedData = insertWorkRequestSchema.parse(requestData);
+      const newWorkRequest = await storage.createWorkRequest(validatedData);
+      res.status(201).json(newWorkRequest);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Validation error', errors: error.errors });
+      }
+      console.error('Create work request error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.put('/api/work-requests/:id', authenticate, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid work request ID' });
+      }
+      
+      // Convert date strings to Date objects
+      const requestData = { ...req.body };
+      if (requestData.dateRequested && typeof requestData.dateRequested === 'string') {
+        requestData.dateRequested = new Date(requestData.dateRequested);
+      }
+      if (requestData.dateNeeded && typeof requestData.dateNeeded === 'string') {
+        requestData.dateNeeded = new Date(requestData.dateNeeded);
+      }
+      
+      const validatedData = insertWorkRequestSchema.partial().parse(requestData);
+      const updatedWorkRequest = await storage.updateWorkRequest(id, validatedData);
+      
+      if (!updatedWorkRequest) {
+        return res.status(404).json({ message: 'Work request not found' });
+      }
+      
+      res.json(updatedWorkRequest);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Validation error', errors: error.errors });
+      }
+      console.error('Update work request error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/work-requests/:id/convert', authenticate, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid work request ID' });
+      }
+      
+      // Any additional work order data
+      const workOrderData = req.body;
+      
+      const workOrder = await storage.convertWorkRequestToWorkOrder(id, workOrderData);
+      
+      if (!workOrder) {
+        return res.status(404).json({ message: 'Work request not found or conversion failed' });
+      }
+      
+      res.status(201).json(workOrder);
+    } catch (error) {
+      console.error('Convert work request error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  // Preventive Maintenance routes
+  app.get('/api/preventive-maintenance', async (req, res) => {
+    try {
+      const pmSchedules = await storage.listPreventiveMaintenances();
+      res.json(pmSchedules);
+    } catch (error) {
+      console.error('List preventive maintenance error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/preventive-maintenance/details', async (req, res) => {
+    try {
+      const pmSchedules = await storage.listPreventiveMaintenancesWithDetails();
+      res.json(pmSchedules);
+    } catch (error) {
+      console.error('List preventive maintenance with details error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/preventive-maintenance/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid preventive maintenance ID' });
+      }
+      
+      const pmSchedule = await storage.getPreventiveMaintenance(id);
+      
+      if (!pmSchedule) {
+        return res.status(404).json({ message: 'Preventive maintenance schedule not found' });
+      }
+      
+      res.json(pmSchedule);
+    } catch (error) {
+      console.error('Get preventive maintenance error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/preventive-maintenance/:id/details', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid preventive maintenance ID' });
+      }
+      
+      const pmSchedule = await storage.getPreventiveMaintenanceDetails(id);
+      
+      if (!pmSchedule) {
+        return res.status(404).json({ message: 'Preventive maintenance schedule not found' });
+      }
+      
+      res.json(pmSchedule);
+    } catch (error) {
+      console.error('Get preventive maintenance details error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/preventive-maintenance', authenticate, async (req, res) => {
+    try {
+      // Convert date strings to Date objects
+      const requestData = { ...req.body };
+      if (requestData.startDate && typeof requestData.startDate === 'string') {
+        requestData.startDate = new Date(requestData.startDate);
+      }
+      if (requestData.dateCreated && typeof requestData.dateCreated === 'string') {
+        requestData.dateCreated = new Date(requestData.dateCreated);
+      }
+      
+      // Set created by ID to current user if not specified
+      if (!requestData.createdById && req.session.userId) {
+        requestData.createdById = req.session.userId;
+      }
+      
+      const validatedData = insertPreventiveMaintenanceSchema.parse(requestData);
+      const newPM = await storage.createPreventiveMaintenance(validatedData);
+      
+      // If technicians are specified, assign them
+      if (requestData.technicians && Array.isArray(requestData.technicians)) {
+        await storage.assignTechnicians(newPM.id, requestData.technicians);
+      }
+      
+      // Generate work orders if required immediately
+      if (requestData.generateWorkOrdersImmediately) {
+        await storage.generateWorkOrdersFromPM(newPM.id);
+      }
+      
+      res.status(201).json(newPM);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Validation error', errors: error.errors });
+      }
+      console.error('Create preventive maintenance error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.put('/api/preventive-maintenance/:id', authenticate, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid preventive maintenance ID' });
+      }
+      
+      // Convert date strings to Date objects
+      const requestData = { ...req.body };
+      if (requestData.startDate && typeof requestData.startDate === 'string') {
+        requestData.startDate = new Date(requestData.startDate);
+      }
+      
+      const validatedData = insertPreventiveMaintenanceSchema.partial().parse(requestData);
+      const updatedPM = await storage.updatePreventiveMaintenance(id, validatedData);
+      
+      if (!updatedPM) {
+        return res.status(404).json({ message: 'Preventive maintenance schedule not found' });
+      }
+      
+      // If technicians are specified, update assignments
+      if (requestData.technicians && Array.isArray(requestData.technicians)) {
+        await storage.assignTechnicians(id, requestData.technicians);
+      }
+      
+      res.json(updatedPM);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Validation error', errors: error.errors });
+      }
+      console.error('Update preventive maintenance error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/preventive-maintenance/:id/technicians', authenticate, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid preventive maintenance ID' });
+      }
+      
+      const { technicianIds } = req.body;
+      
+      if (!Array.isArray(technicianIds)) {
+        return res.status(400).json({ message: 'Technician IDs must be an array' });
+      }
+      
+      const result = await storage.assignTechnicians(id, technicianIds);
+      res.json(result);
+    } catch (error) {
+      console.error('Assign technicians error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.delete('/api/preventive-maintenance/:pmId/technicians/:techId', authenticate, async (req, res) => {
+    try {
+      const pmId = parseInt(req.params.pmId);
+      const techId = parseInt(req.params.techId);
+      
+      if (isNaN(pmId) || isNaN(techId)) {
+        return res.status(400).json({ message: 'Invalid ID parameters' });
+      }
+      
+      const result = await storage.removeTechnician(pmId, techId);
+      
+      if (!result) {
+        return res.status(404).json({ message: 'Assignment not found' });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Remove technician error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/preventive-maintenance/:id/generate-work-orders', authenticate, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid preventive maintenance ID' });
+      }
+      
+      const workOrders = await storage.generateWorkOrdersFromPM(id);
+      
+      res.status(201).json(workOrders);
+    } catch (error) {
+      console.error('Generate work orders error:', error);
+      res.status(500).json({ 
+        message: error instanceof Error ? error.message : 'Internal server error' 
+      });
+    }
+  });
+
+  app.get('/api/preventive-maintenance/:id/work-orders', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid preventive maintenance ID' });
+      }
+      
+      const workOrders = await storage.getWorkOrdersForPM(id);
+      
+      res.json(workOrders);
+    } catch (error) {
+      console.error('Get work orders for PM error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
   });

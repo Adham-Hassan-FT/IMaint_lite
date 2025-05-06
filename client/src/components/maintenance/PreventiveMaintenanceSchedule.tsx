@@ -51,7 +51,11 @@ export default function PreventiveMaintenanceSchedule() {
   const [activeTab, setActiveTab] = useState("calendar");
   const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
   
-  // Get work orders and assets
+  // Get preventive maintenance schedules, work orders, and assets
+  const { data: preventiveMaintenance, isLoading: isLoadingPM } = useQuery({
+    queryKey: ['/api/preventive-maintenance/details'],
+  });
+
   const { data: workOrders, isLoading: isLoadingWorkOrders } = useQuery<WorkOrderWithDetails[]>({
     queryKey: ['/api/work-orders/details'],
   });
@@ -60,55 +64,113 @@ export default function PreventiveMaintenanceSchedule() {
     queryKey: ['/api/assets/details'],
   });
 
-  // Function to generate preventive maintenance events
-  // In a real app, this would come from a PM schedule database table
+  // Function to generate maintenance events from the PM schedules and their generated work orders
   const generateMaintenanceSchedule = (): ScheduleEvent[] => {
-    if (!assets || !workOrders) return [];
+    if (!preventiveMaintenance || !workOrders || !assets) return [];
     
     const events: ScheduleEvent[] = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    // For each asset that needs preventive maintenance
-    assets.forEach(asset => {
-      // Skip assets that don't need maintenance
-      if (asset.status !== 'operational') return;
+    // Process each PM schedule
+    preventiveMaintenance.forEach((pm: any) => {
+      // Skip inactive PMs
+      if (!pm.isActive) return;
       
-      // Simulate maintenance interval (e.g., every 30/60/90 days based on asset ID)
-      const interval = (asset.id % 3 + 1) * 30; // 30, 60, or 90 days
+      // Get the asset info
+      const asset = pm.asset || assets.find(a => a.id === pm.assetId);
+      if (!asset && pm.assetId) return; // Skip if asset not found but required
       
-      // Create upcoming maintenance events for the next 6 months
-      let nextDate = addDays(today, (asset.id % 14) + 1); // Stagger initial dates
-      
-      for (let i = 0; i < 3; i++) {
-        // See if there's a work order already created for this PM event
-        const relatedWorkOrder = workOrders.find(wo => 
-          wo.assetId === asset.id && 
-          wo.dateNeeded && 
-          isSameDay(new Date(wo.dateNeeded), nextDate) &&
-          wo.title.includes("Preventive Maintenance")
-        );
+      // For each work order generated from this PM
+      if (pm.generatedWorkOrders && pm.generatedWorkOrders.length > 0) {
+        pm.generatedWorkOrders.forEach((pmwo: any) => {
+          const workOrder = pmwo.workOrder;
+          if (!workOrder) return;
+          
+          // Convert date strings to Date objects
+          const scheduledDate = pmwo.scheduledDate ? new Date(pmwo.scheduledDate) : null;
+          if (!scheduledDate) return;
+          
+          // Determine status
+          let status = 'upcoming';
+          if (isSameDay(scheduledDate, today)) status = 'due';
+          else if (isBefore(scheduledDate, today)) status = 'overdue';
+          
+          if (workOrder.status === 'completed') status = 'completed';
+          
+          events.push({
+            id: workOrder.id,
+            title: `${asset?.type?.name || 'Equipment'} Maintenance`,
+            assetId: asset?.id || 0,
+            assetNumber: asset?.assetNumber || 'N/A',
+            description: pm.title || pm.description || '',
+            date: scheduledDate,
+            status,
+            workOrderId: workOrder.id
+          });
+        });
+      } 
+      // If no work orders yet, create an event for the PM itself
+      else {
+        const startDate = pm.startDate ? new Date(pm.startDate) : null;
+        if (!startDate) return;
         
         // Determine status
         let status = 'upcoming';
-        if (isSameDay(nextDate, today)) status = 'due';
-        else if (isBefore(nextDate, today)) status = 'overdue';
-        
-        if (relatedWorkOrder?.status === 'completed') status = 'completed';
+        if (isSameDay(startDate, today)) status = 'due';
+        else if (isBefore(startDate, today)) status = 'overdue';
         
         events.push({
-          id: events.length + 1,
-          title: `${asset.type?.name || 'Equipment'} Maintenance`,
-          assetId: asset.id,
-          assetNumber: asset.assetNumber,
-          description: asset.description || '',
-          date: nextDate,
-          status,
-          workOrderId: relatedWorkOrder?.id
+          id: pm.id,
+          title: `${asset?.type?.name || 'Equipment'} Maintenance`,
+          assetId: asset?.id || 0,
+          assetNumber: asset?.assetNumber || 'N/A',
+          description: pm.title || pm.description || '',
+          date: startDate,
+          status
         });
         
-        // Next maintenance date
-        nextDate = addDays(nextDate, interval);
+        // For recurring PM, add future occurrences
+        if (pm.isRecurring && pm.recurringPeriod && pm.occurrences) {
+          for (let i = 1; i < pm.occurrences; i++) {
+            let futureDate = new Date(startDate);
+            
+            // Calculate the future date based on recurring period
+            switch (pm.recurringPeriod) {
+              case 'daily':
+                futureDate.setDate(futureDate.getDate() + i);
+                break;
+              case 'weekly':
+                futureDate.setDate(futureDate.getDate() + (i * 7));
+                break;
+              case 'biweekly':
+                futureDate.setDate(futureDate.getDate() + (i * 14));
+                break;
+              case 'monthly':
+                futureDate.setMonth(futureDate.getMonth() + i);
+                break;
+              case 'quarterly':
+                futureDate.setMonth(futureDate.getMonth() + (i * 3));
+                break;
+              case 'semiannually':
+                futureDate.setMonth(futureDate.getMonth() + (i * 6));
+                break;
+              case 'annually':
+                futureDate.setFullYear(futureDate.getFullYear() + i);
+                break;
+            }
+            
+            events.push({
+              id: pm.id * 1000 + i, // Create a unique ID
+              title: `${asset?.type?.name || 'Equipment'} Maintenance`,
+              assetId: asset?.id || 0,
+              assetNumber: asset?.assetNumber || 'N/A',
+              description: `${pm.title || pm.description || ''} (${i+1}/${pm.occurrences})`,
+              date: futureDate,
+              status: 'upcoming'
+            });
+          }
+        }
       }
     });
     
@@ -146,7 +208,7 @@ export default function PreventiveMaintenanceSchedule() {
   };
   
   // If loading, show skeleton
-  if (isLoadingWorkOrders || isLoadingAssets) {
+  if (isLoadingWorkOrders || isLoadingAssets || isLoadingPM) {
     return (
       <div className="space-y-4">
         <div className="flex justify-between items-center">
@@ -182,8 +244,8 @@ export default function PreventiveMaintenanceSchedule() {
     );
   }
   
-  // If assets couldn't be loaded, show error
-  if (!assets || !workOrders) {
+  // If data couldn't be loaded, show error
+  if (!assets || !workOrders || !preventiveMaintenance) {
     return (
       <Alert variant="destructive">
         <AlertCircle className="h-4 w-4" />
