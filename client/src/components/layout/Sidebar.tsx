@@ -92,7 +92,7 @@ export default function Sidebar({ className }: SidebarProps) {
         <div className="px-4 py-2">
           <h2 className="text-xl font-bold tracking-tight flex items-center">
             <Cog className="mr-2 h-6 w-6 text-primary" />
-            iMaint
+            IMaint Lite
           </h2>
           <p className="text-sm text-muted-foreground">
             Maintenance Management

@@ -1,0 +1,135 @@
+change the name of the app to Imaint lite
+
+
+bug fixes below:
+
+assign work order button not opening anything ( in /resources)
+schedule button not doing anything in /resources
+
+edit asset not opening anything in assets
+Related Information section , cant create work order or upload a document
+edit item in inventory not working / not doing anything
+
+
+instructions to win the tournament : 
+Thank you again for participating in the Build With AI program this May!
+
+
+As a reminder, you’ve been given a full week during the month of May to step away from day-to-day work and focus on building something valuable using agents AI development tools like Cursor, Windsurf, Copilot (in agent mode), or others of your choice.
+
+ 
+📁 What Your Submission Should Include:
+By the end of your build week, your submission must include:
+
+
+
+1️⃣ A Zip file of your project repository, including code, README, and any related assets needed to run the project.
+
+2️⃣ A 1–2 page document describing your project, including:
+
+What problem it addresses
+
+How it works
+
+How AI tools were used in the development process
+
+3️⃣ At least ONE of the following:
+
+A short video (screen-recorded) demo
+
+A live deployment URL (e.g., hosted on AWS, Vercel, Netlify, etc.)
+
+ 
+🔐 Your Unique Submission ID:
+Your unique ID for this program is: C014
+
+Please include this ID in the filenames of everything you submit. For example:
+
+demo_video_C014.mp4
+
+repository_C014.zip
+
+
+
+This helps ensure your materials are correctly attributed during the evaluation process.
+
+ 
+📤 How to Submit Your Project
+Please upload your completed submission—including the zip file, documentation, and demo or URL—to your assigned folder:
+
+https://valsoftaspire.sharepoint.com/sites/VCORPBuildWithAI/Shared%20Documents/Submissions/Caruso/C014
+
+
+Only you, the designated evaluators, and the judging panel will have access to this folder. This ensures your work is securely stored and accessible only to those involved in the evaluation process.
+
+ 
+🏆 Prizes for Top Submissions
+Top projects will be selected based on the evaluation criteria below and awarded the following bonuses as prizes*:
+
+🥇 1st Place: $15,000
+
+🥈 2nd Place: $10,000
+
+🏅 3rd, 4th & 5th Place: $5,000 each
+
+*All amounts are in CAD and will be treated as a bonus.
+
+ 
+📅 Reminder: Stick to Your Approved Week
+Please remember to build during the week you coordinated with your manager to ensure ongoing team deliverables are not impacted.
+
+ 
+🧮 Build With AI Evaluation Scorecard
+Originality & Creativity (20%)
+
+Is the idea fresh, unique, or a thoughtful reimagining of existing work?
+
+Is the project creative in how the technology was implemented?
+
+Is the demo engaging and well-presented?
+
+Impact & Relevance (20%)
+
+Could this project offer tangible value to customers, internally or externally?
+
+Does it address a real need in the developer’s vertical or an adjacent market?
+
+Is the value or purpose of the project clear and compelling?
+
+Product Quality & Usability (20%)
+
+Does the project address a good number of real-world business use cases?
+
+How practical and usable is the solution in its current state?
+
+Does it include thoughtful, well-designed features that directly support the stated need?
+
+Technical Quality (20%)
+
+How complete is the project code, README, and overall codebase?
+
+Is there substantial, original technical implementation (i.e. not just reused sample code)?
+
+Does the project’s architecture appear sound and scalable?
+
+Alignment with Build With AI Goals (20%)
+
+Does the project clearly demonstrate the use of AI development tools in its creation?
+
+Is it evident from the demo or final product that AI tooling meaningfully accelerated or enhanced the development process (i.e., the developer was able to “do more with less”)?
+
+Does the scope or quality of the project suggest it likely wouldn’t have been achievable within a week without the use of AI tools?
+
+ 
+🔒 Important Note on Intellectual Property and Confidentiality
+Please kindly note that all inventions, developments, works of authorship, and improvements created during this initiative shall be the exclusive property of Valsoft Corporation, Inc., in accordance with the terms of your employment agreement and applicable law. This initiative does not constitute vacation or leave for purposes of intellectual property ownership. All obligations relating to confidentiality, intellectual property ownership, and non-disclosure remain in full force and effect. No work product developed during this initiative may be disclosed, published, or otherwise made available outside of Valsoft without prior written consent. Valsoft Corporation, Inc. retains all rights outlined herein.
+
+ 
+We’re excited to see what you build and how you leverage AI tools to bring your ideas to life. If you have any questions or need support, feel free to reach out to your group's technical leaders.
+
+
+
+Best of luck,
+
+The Build With AI Committee
+

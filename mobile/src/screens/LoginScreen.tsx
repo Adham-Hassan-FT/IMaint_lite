@@ -77,7 +77,7 @@ const LoginScreen = () => {
         >
           <View style={styles.logoContainer}>
             <Image
-              source={{ uri: 'https://via.placeholder.com/200x100?text=IMaint' }}
+              source={{ uri: 'https://via.placeholder.com/200x100?text=IMaint+Lite' }}
               style={styles.logo}
               resizeMode="contain"
             />
