@@ -1,240 +1,472 @@
-import React, { useEffect, useState } from 'react';
-import { View, FlatList, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
-import { Card, Chip, FAB, Searchbar, Text, Title, useTheme, ActivityIndicator } from 'react-native-paper';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  ScrollView,
+  TouchableOpacity,
+  FlatList,
+  StyleSheet,
+  Dimensions,
+  Text,
+  RefreshControl,
+  Platform,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Badge,
+  Searchbar,
+  FAB,
+  Divider,
+  Chip,
+  Portal,
+  Dialog,
+  Button,
+  ActivityIndicator,
+  useTheme,
+} from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { get } from '../lib/api';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { MainStackParamList } from '../navigation/MainNavigator';
+import axios from 'axios';
 
-// Import shared types from your main schema
-import { WorkOrderWithDetails } from '../../../shared/schema'; 
+type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
+
+// WorkOrder interface
+interface WorkOrder {
+  id: number;
+  workOrderNumber: string;
+  title: string;
+  description: string;
+  status: string;
+  priority: string;
+  dateRequested: string;
+  dateNeeded: string;
+  asset?: {
+    id: number;
+    description: string;
+  };
+  requestedBy?: {
+    fullName: string;
+  };
+  assignedTo?: {
+    fullName: string;
+  };
+  type?: {
+    name: string;
+  };
+}
 
 const WorkOrdersScreen = () => {
-  const theme = useTheme();
-  const navigation = useNavigation<NativeStackNavigationProp<any>>();
-  
-  const [workOrders, setWorkOrders] = useState<WorkOrderWithDetails[]>([]);
-  const [filteredWorkOrders, setFilteredWorkOrders] = useState<WorkOrderWithDetails[]>([]);
+  const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [filteredWorkOrders, setFilteredWorkOrders] = useState<WorkOrder[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [priorityFilter, setPriorityFilter] = useState<string | null>(null);
+  const [filterVisible, setFilterVisible] = useState(false);
   
+  const theme = useTheme();
+  const navigation = useNavigation<NavigationProp>();
+  const screenWidth = Dimensions.get('window').width;
+  const isSmallScreen = screenWidth < 768;
+
+  // Fetch work orders
+  useEffect(() => {
+    fetchWorkOrders();
+  }, []);
+
+  // Apply filters
+  useEffect(() => {
+    filterWorkOrders();
+  }, [searchQuery, statusFilter, priorityFilter, workOrders]);
+
   const fetchWorkOrders = async () => {
-    setLoading(true);
     try {
-      const data = await get<WorkOrderWithDetails[]>('/api/work-orders/details');
-      setWorkOrders(data);
-      setFilteredWorkOrders(data);
+      setLoading(true);
+      const response = await axios.get('/api/work-orders/details');
+      setWorkOrders(response.data);
     } catch (error) {
-      console.error('Failed to fetch work orders:', error);
+      console.error('Error fetching work orders:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
-  
-  useEffect(() => {
-    fetchWorkOrders();
-  }, []);
-  
-  const onRefresh = React.useCallback(() => {
+
+  const onRefresh = () => {
     setRefreshing(true);
     fetchWorkOrders();
-  }, []);
-  
-  const onChangeSearch = (query: string) => {
-    setSearchQuery(query);
-    if (query.trim() === '') {
-      setFilteredWorkOrders(workOrders);
-    } else {
-      const filtered = workOrders.filter(
-        (wo) => 
-          wo.title.toLowerCase().includes(query.toLowerCase()) ||
-          wo.description?.toLowerCase().includes(query.toLowerCase()) ||
-          wo.workOrderNumber.toLowerCase().includes(query.toLowerCase())
+  };
+
+  const filterWorkOrders = () => {
+    let filtered = [...workOrders];
+    
+    // Apply search query filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        wo => 
+          wo.workOrderNumber.toLowerCase().includes(query) ||
+          wo.title.toLowerCase().includes(query) ||
+          wo.description.toLowerCase().includes(query) ||
+          (wo.asset?.description && wo.asset.description.toLowerCase().includes(query))
       );
-      setFilteredWorkOrders(filtered);
+    }
+    
+    // Apply status filter
+    if (statusFilter) {
+      filtered = filtered.filter(wo => wo.status === statusFilter);
+    }
+    
+    // Apply priority filter
+    if (priorityFilter) {
+      filtered = filtered.filter(wo => wo.priority === priorityFilter);
+    }
+    
+    setFilteredWorkOrders(filtered);
+  };
+
+  const onSearchChange = (query: string) => {
+    setSearchQuery(query);
+  };
+
+  const clearFilters = () => {
+    setStatusFilter(null);
+    setPriorityFilter(null);
+    setFilterVisible(false);
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'high':
+        return '#ef4444';
+      case 'medium':
+        return '#f59e0b';
+      case 'low':
+        return '#10b981';
+      default:
+        return '#6b7280';
     }
   };
-  
-  const navigateToDetail = (workOrder: WorkOrderWithDetails) => {
-    navigation.navigate('WorkOrderDetail', { workOrderId: workOrder.id });
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'requested':
+        return '#3b82f6';
+      case 'assigned':
+        return '#f59e0b';
+      case 'in-progress':
+        return '#8b5cf6';
+      case 'on-hold':
+        return '#6b7280';
+      case 'completed':
+        return '#10b981';
+      case 'cancelled':
+        return '#ef4444';
+      default:
+        return '#6b7280';
+    }
   };
-  
-  const renderWorkOrderCard = ({ item }: { item: WorkOrderWithDetails }) => {
-    // Helper function to get status color
-    const getStatusColor = (status: string) => {
-      switch (status) {
-        case 'requested': return '#9ca3af';
-        case 'approved': return '#60a5fa';
-        case 'scheduled': return '#f59e0b';
-        case 'in_progress': return '#10b981';
-        case 'on_hold': return '#a855f7';
-        case 'completed': return '#22c55e';
-        case 'cancelled': return '#ef4444';
-        default: return '#9ca3af';
-      }
-    };
-    
-    // Helper to format status text
-    const formatStatus = (status: string) => {
-      return status.split('_').map(word => 
-        word.charAt(0).toUpperCase() + word.slice(1)
-      ).join(' ');
-    };
-    
-    // Helper to get priority icon
-    const getPriorityIcon = (priority: string) => {
-      switch (priority) {
-        case 'low': return 'arrow-down';
-        case 'medium': return 'arrow-right';
-        case 'high': return 'arrow-up';
-        case 'critical': return 'alert-circle';
-        default: return 'arrow-right';
-      }
-    };
-    
-    // Helper to get priority color
-    const getPriorityColor = (priority: string) => {
-      switch (priority) {
-        case 'low': return '#10b981';
-        case 'medium': return '#f59e0b';
-        case 'high': return '#ef4444';
-        case 'critical': return '#7f1d1d';
-        default: return '#f59e0b';
-      }
-    };
-    
-    return (
-      <TouchableOpacity onPress={() => navigateToDetail(item)}>
-        <Card style={styles.card}>
-          <Card.Content>
-            <View style={styles.cardHeader}>
-              <Text style={styles.workOrderNumber}>{item.workOrderNumber}</Text>
-              <Chip 
-                mode="flat"
-                style={[styles.statusChip, { backgroundColor: getStatusColor(item.status) }]}
-                textStyle={{ color: 'white', fontSize: 12 }}
-              >
-                {formatStatus(item.status)}
-              </Chip>
-            </View>
-            
-            <Title style={styles.title}>{item.title}</Title>
-            <Text numberOfLines={2} style={styles.description}>
-              {item.description || 'No description provided'}
-            </Text>
-            
-            <Divider />
-            
-            <View style={styles.cardFooter}>
-              <View style={styles.footerItem}>
-                <MaterialCommunityIcons 
-                  name="calendar" 
-                  size={16} 
-                  color="#666" 
-                  style={styles.footerIcon} 
-                />
-                <Text style={styles.footerText}>
-                  {new Date(item.dateRequested).toLocaleDateString()}
-                </Text>
-              </View>
-              
-              <View style={styles.footerItem}>
-                <MaterialCommunityIcons 
-                  name="account" 
-                  size={16} 
-                  color="#666" 
-                  style={styles.footerIcon} 
-                />
-                <Text style={styles.footerText}>
-                  {item.assignedTo?.fullName || 'Unassigned'}
-                </Text>
-              </View>
-              
-              <View style={styles.footerItem}>
-                <MaterialCommunityIcons 
-                  name={getPriorityIcon(item.priority)} 
-                  size={16} 
-                  color={getPriorityColor(item.priority)} 
-                  style={styles.footerIcon} 
-                />
-                <Text style={[styles.footerText, { color: getPriorityColor(item.priority) }]}>
-                  {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)}
-                </Text>
-              </View>
-            </View>
-          </Card.Content>
-        </Card>
-      </TouchableOpacity>
-    );
+
+  const formatStatus = (status: string) => {
+    return status.split('-').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
   };
-  
-  return (
-    <View style={styles.container}>
-      <Searchbar
-        placeholder="Search work orders"
-        onChangeText={onChangeSearch}
-        value={searchQuery}
-        style={styles.searchBar}
-      />
+
+  // Render a work order item
+  const renderWorkOrderItem = ({ item }: { item: WorkOrder }) => (
+    <TouchableOpacity 
+      style={styles.workOrderItem}
+      onPress={() => navigation.navigate('WorkOrderDetail', { workOrderId: item.id })}
+    >
+      <View style={styles.workOrderHeader}>
+        <Text style={styles.workOrderNumber}>{item.workOrderNumber}</Text>
+        <Badge 
+          style={[
+            styles.priorityBadge, 
+            { backgroundColor: getPriorityColor(item.priority) }
+          ]}
+        >
+          {item.priority}
+        </Badge>
+      </View>
       
-      {loading && !refreshing ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Loading work orders...</Text>
+      <Text style={styles.workOrderTitle}>{item.title}</Text>
+      
+      {item.asset && (
+        <View style={styles.workOrderAssetRow}>
+          <MaterialCommunityIcons name="dolly" size={16} color="#6b7280" />
+          <Text style={styles.workOrderAsset}>{item.asset.description}</Text>
         </View>
-      ) : (
-        <FlatList
-          data={filteredWorkOrders}
-          renderItem={renderWorkOrderCard}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.listContainer}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons 
-                name="clipboard-text-outline" 
-                size={64} 
-                color="#ccc" 
-              />
-              <Text style={styles.emptyText}>No work orders found</Text>
-            </View>
-          }
-        />
       )}
       
-      <FAB
-        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-        icon="plus"
-        onPress={() => navigation.navigate('NewWorkOrder')}
-        color="white"
+      {item.type && (
+        <View style={styles.workOrderTypeRow}>
+          <MaterialCommunityIcons name="tag" size={16} color="#6b7280" />
+          <Text style={styles.workOrderType}>{item.type.name}</Text>
+        </View>
+      )}
+      
+      <View style={styles.workOrderFooter}>
+        <View style={styles.workOrderDates}>
+          <Text style={styles.workOrderDateLabel}>Needed by:</Text>
+          <Text style={styles.workOrderDate}>{formatDate(item.dateNeeded)}</Text>
+        </View>
+        
+        <Badge 
+          style={[
+            styles.statusBadge, 
+            { backgroundColor: getStatusColor(item.status) }
+          ]}
+        >
+          {formatStatus(item.status)}
+        </Badge>
+      </View>
+      
+      {item.assignedTo && (
+        <View style={styles.workOrderAssigneeRow}>
+          <MaterialCommunityIcons name="account" size={16} color="#6b7280" />
+          <Text style={styles.workOrderAssignee}>
+            Assigned to: {item.assignedTo.fullName}
+          </Text>
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+
+  // Render separator between items
+  const renderSeparator = () => <Divider style={styles.divider} />;
+
+  // Render empty state
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <MaterialCommunityIcons 
+        name="clipboard-text-outline" 
+        size={60} 
+        color="#d1d5db" 
       />
+      <Text style={styles.emptyStateText}>
+        {searchQuery || statusFilter || priorityFilter
+          ? 'No work orders match your search criteria'
+          : 'No work orders found'}
+      </Text>
+      {(searchQuery || statusFilter || priorityFilter) && (
+        <Button 
+          mode="outlined" 
+          onPress={clearFilters}
+          style={styles.clearFiltersButton}
+        >
+          Clear Filters
+        </Button>
+      )}
     </View>
+  );
+
+  if (loading && !refreshing) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+      </View>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.searchContainer}>
+          <Searchbar
+            placeholder="Search work orders"
+            onChangeText={onSearchChange}
+            value={searchQuery}
+            style={styles.searchBar}
+          />
+          
+          <TouchableOpacity 
+            style={styles.filterButton}
+            onPress={() => setFilterVisible(true)}
+          >
+            <MaterialCommunityIcons 
+              name="filter-variant" 
+              size={24} 
+              color={statusFilter || priorityFilter ? theme.colors.primary : '#6b7280'} 
+            />
+          </TouchableOpacity>
+        </View>
+        
+        {/* Active filters display */}
+        {(statusFilter || priorityFilter) && (
+          <View style={styles.activeFiltersContainer}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.activeFiltersContent}
+            >
+              {statusFilter && (
+                <Chip 
+                  mode="outlined"
+                  onClose={() => setStatusFilter(null)}
+                  style={[styles.filterChip, { borderColor: getStatusColor(statusFilter) }]}
+                  textStyle={{ color: getStatusColor(statusFilter) }}
+                >
+                  Status: {formatStatus(statusFilter)}
+                </Chip>
+              )}
+              
+              {priorityFilter && (
+                <Chip 
+                  mode="outlined"
+                  onClose={() => setPriorityFilter(null)}
+                  style={[styles.filterChip, { borderColor: getPriorityColor(priorityFilter) }]}
+                  textStyle={{ color: getPriorityColor(priorityFilter) }}
+                >
+                  Priority: {priorityFilter.charAt(0).toUpperCase() + priorityFilter.slice(1)}
+                </Chip>
+              )}
+            </ScrollView>
+          </View>
+        )}
+        
+        <FlatList
+          data={filteredWorkOrders}
+          renderItem={renderWorkOrderItem}
+          keyExtractor={item => item.id.toString()}
+          ItemSeparatorComponent={renderSeparator}
+          contentContainerStyle={styles.workOrderList}
+          ListEmptyComponent={renderEmptyState}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[theme.colors.primary]}
+            />
+          }
+        />
+        
+        <FAB
+          icon="plus"
+          style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+          onPress={() => {}}
+          label={isSmallScreen ? undefined : "New Work Order"}
+        />
+        
+        {/* Filter Dialog */}
+        <Portal>
+          <Dialog
+            visible={filterVisible}
+            onDismiss={() => setFilterVisible(false)}
+            style={styles.filterDialog}
+          >
+            <Dialog.Title>Filter Work Orders</Dialog.Title>
+            <Dialog.Content>
+              <Text style={styles.filterSectionTitle}>Status</Text>
+              <View style={styles.filterChipsContainer}>
+                {['requested', 'assigned', 'in-progress', 'on-hold', 'completed', 'cancelled'].map(status => (
+                  <Chip
+                    key={status}
+                    selected={statusFilter === status}
+                    onPress={() => setStatusFilter(statusFilter === status ? null : status)}
+                    style={[
+                      styles.filterOptionChip,
+                      statusFilter === status && { backgroundColor: getStatusColor(status) }
+                    ]}
+                    textStyle={statusFilter === status ? styles.selectedChipText : undefined}
+                  >
+                    {formatStatus(status)}
+                  </Chip>
+                ))}
+              </View>
+              
+              <Text style={styles.filterSectionTitle}>Priority</Text>
+              <View style={styles.filterChipsContainer}>
+                {['high', 'medium', 'low'].map(priority => (
+                  <Chip
+                    key={priority}
+                    selected={priorityFilter === priority}
+                    onPress={() => setPriorityFilter(priorityFilter === priority ? null : priority)}
+                    style={[
+                      styles.filterOptionChip,
+                      priorityFilter === priority && { backgroundColor: getPriorityColor(priority) }
+                    ]}
+                    textStyle={priorityFilter === priority ? styles.selectedChipText : undefined}
+                  >
+                    {priority.charAt(0).toUpperCase() + priority.slice(1)}
+                  </Chip>
+                ))}
+              </View>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={clearFilters}>Clear All</Button>
+              <Button onPress={() => setFilterVisible(false)}>Apply</Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  searchBar: {
-    margin: 16,
-    elevation: 2,
-    backgroundColor: 'white',
+  container: {
+    flex: 1,
   },
-  listContainer: {
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchContainer: {
+    flexDirection: 'row',
     padding: 16,
-    paddingBottom: 80, // Extra padding for FAB
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
-  card: {
-    marginBottom: 16,
-    elevation: 2,
+  searchBar: {
+    flex: 1,
+    marginRight: 10,
+    backgroundColor: '#f3f4f6',
   },
-  cardHeader: {
+  filterButton: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 48,
+    borderRadius: 8,
+    backgroundColor: '#f3f4f6',
+  },
+  activeFiltersContainer: {
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+    paddingHorizontal: 8,
+    paddingBottom: 12,
+  },
+  activeFiltersContent: {
+    paddingHorizontal: 8,
+  },
+  filterChip: {
+    marginHorizontal: 4,
+    height: 32,
+  },
+  workOrderList: {
+    flexGrow: 1,
+    backgroundColor: '#fff',
+  },
+  workOrderItem: {
+    padding: 16,
+    backgroundColor: '#fff',
+  },
+  workOrderHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -242,59 +474,113 @@ const styles = StyleSheet.create({
   },
   workOrderNumber: {
     fontSize: 14,
-    color: '#666',
+    fontWeight: '500',
+    color: '#4b5563',
   },
-  statusChip: {
-    height: 24,
+  priorityBadge: {
+    textTransform: 'capitalize',
+    height: 22,
   },
-  title: {
-    fontSize: 18,
+  workOrderTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#111827',
+  },
+  workOrderAssetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 4,
   },
-  description: {
-    color: '#666',
-    marginBottom: 12,
+  workOrderAsset: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginLeft: 6,
   },
-  cardFooter: {
+  workOrderTypeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  workOrderType: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginLeft: 6,
+  },
+  workOrderFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginTop: 12,
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 8,
   },
-  footerItem: {
+  workOrderDates: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  footerIcon: {
+  workOrderDateLabel: {
+    fontSize: 12,
+    color: '#6b7280',
     marginRight: 4,
   },
-  footerText: {
+  workOrderDate: {
     fontSize: 12,
-    color: '#666',
+    fontWeight: '500',
+    color: '#4b5563',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  statusBadge: {
+    height: 22,
+  },
+  workOrderAssigneeRow: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  loadingText: {
-    marginTop: 10,
+  workOrderAssignee: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginLeft: 6,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingTop: 100,
-  },
-  emptyText: {
-    marginTop: 16,
-    color: '#666',
-    fontSize: 16,
+  divider: {
+    height: 1,
+    backgroundColor: '#e5e7eb',
   },
   fab: {
     position: 'absolute',
     margin: 16,
     right: 0,
     bottom: 0,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  emptyStateText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  clearFiltersButton: {
+    marginTop: 16,
+  },
+  filterDialog: {
+    borderRadius: 8,
+  },
+  filterSectionTitle: {
+    fontWeight: 'bold',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  filterChipsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  filterOptionChip: {
+    margin: 4,
+  },
+  selectedChipText: {
+    color: 'white',
   },
 });
 

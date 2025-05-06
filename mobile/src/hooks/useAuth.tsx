@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
+// Define the User type
 interface User {
   id: number;
   username: string;
@@ -10,67 +11,95 @@ interface User {
   role: string;
 }
 
+// Define what our authentication context will contain
 interface AuthContextType {
   isAuthenticated: boolean;
+  isLoading: boolean;
   user: User | null;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  isLoading: boolean;
-  error: string | null;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// Create the context with a default value
+const AuthContext = createContext<AuthContextType>({
+  isAuthenticated: false,
+  isLoading: true,
+  user: null,
+  login: async () => {},
+  logout: async () => {},
+});
 
-// Base URL for API - update for production
-const API_URL = 'http://localhost:5000'; 
+// Hook to use the auth context
+export const useAuth = () => useContext(AuthContext);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+// AuthProvider component to wrap app and provide authentication state
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
-  // Check if user is already logged in on app startup
+  // Check authentication status on mount
   useEffect(() => {
-    const checkLoginStatus = async () => {
+    const checkAuth = async () => {
       try {
-        const response = await axios.get(`${API_URL}/api/auth/me`, {
-          withCredentials: true
-        });
+        // Check if user data exists in AsyncStorage (mobile)
+        const userData = await AsyncStorage.getItem('user');
         
-        if (response.status === 200) {
-          setUser(response.data);
+        if (userData) {
+          // If we have user data stored, set it and authenticate the user
+          setUser(JSON.parse(userData));
           setIsAuthenticated(true);
+          
+          // Configure axios to include credentials
+          axios.defaults.withCredentials = true;
+        } else {
+          // Try to get user from session if in browser
+          try {
+            const response = await axios.get('/api/auth/me');
+            if (response.data) {
+              setUser(response.data);
+              setIsAuthenticated(true);
+              // Store user data in AsyncStorage for mobile
+              await AsyncStorage.setItem('user', JSON.stringify(response.data));
+            }
+          } catch (error) {
+            // Not authenticated
+            setIsAuthenticated(false);
+            setUser(null);
+          }
         }
       } catch (error) {
-        console.log('Not authenticated');
+        console.error('Error checking authentication:', error);
+        setIsAuthenticated(false);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
     };
 
-    checkLoginStatus();
+    checkAuth();
   }, []);
 
   // Login function
   const login = async (username: string, password: string) => {
     try {
       setIsLoading(true);
-      setError(null);
+      const response = await axios.post('/api/auth/login', { username, password });
+      const userData = response.data;
       
-      const response = await axios.post(
-        `${API_URL}/api/auth/login`,
-        { username, password },
-        { withCredentials: true }
-      );
-      
-      setUser(response.data);
+      setUser(userData);
       setIsAuthenticated(true);
       
-      // Store auth token if you're using token-based auth
-      // await AsyncStorage.setItem('authToken', response.data.token);
-    } catch (error: any) {
-      setError(error.response?.data?.message || 'Login failed');
+      // Store user data in AsyncStorage for mobile
+      await AsyncStorage.setItem('user', JSON.stringify(userData));
+      
+      return userData;
+    } catch (error) {
+      console.error('Login error:', error);
       throw error;
     } finally {
       setIsLoading(false);
@@ -81,8 +110,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     try {
       setIsLoading(true);
-      await axios.post(`${API_URL}/api/auth/logout`, {}, { withCredentials: true });
-      // await AsyncStorage.removeItem('authToken');
+      // Call logout API endpoint
+      await axios.post('/api/auth/logout');
+      
+      // Remove user data from AsyncStorage
+      await AsyncStorage.removeItem('user');
+      
       setUser(null);
       setIsAuthenticated(false);
     } catch (error) {
@@ -92,26 +125,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // Value object to provide to consumers
+  const authContextValue: AuthContextType = {
+    isAuthenticated,
+    isLoading,
+    user,
+    login,
+    logout,
+  };
+
   return (
-    <AuthContext.Provider
-      value={{
-        isAuthenticated,
-        user,
-        login,
-        logout,
-        isLoading,
-        error
-      }}
-    >
+    <AuthContext.Provider value={authContextValue}>
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };
