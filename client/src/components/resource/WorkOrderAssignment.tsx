@@ -53,7 +53,7 @@ export default function WorkOrderAssignment({ isOpen, onClose, userId, userName 
 
   const assignWorkOrderMutation = useMutation({
     mutationFn: async ({ workOrderId, userId }: { workOrderId: number, userId: number }) => {
-      return apiRequest(`/api/work-orders/${workOrderId}`, 'PUT', { assignedToId: userId });
+      return apiRequest('PUT', `/api/work-orders/${workOrderId}`, { assignedToId: userId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/work-orders/details'] });
