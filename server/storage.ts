@@ -8,7 +8,11 @@ import {
   workOrders, WorkOrder, InsertWorkOrder, WorkOrderWithDetails,
   workOrderLabor, WorkOrderLabor, InsertWorkOrderLabor,
   workOrderParts, WorkOrderPart, InsertWorkOrderPart,
-  AssetWithDetails, InventoryItemWithDetails
+  AssetWithDetails, InventoryItemWithDetails,
+  workRequests, WorkRequest, InsertWorkRequest, WorkRequestWithDetails,
+  preventiveMaintenance, PreventiveMaintenance, InsertPreventiveMaintenance, PreventiveMaintenanceWithDetails,
+  pmTechnicians, PmTechnician, InsertPmTechnician,
+  pmWorkOrders, PmWorkOrder, InsertPmWorkOrder
 } from "@shared/schema";
 import crypto from "crypto";
 
@@ -70,6 +74,33 @@ export interface IStorage {
   // Work Order Parts
   createWorkOrderPart(part: InsertWorkOrderPart): Promise<WorkOrderPart>;
   listWorkOrderParts(workOrderId: number): Promise<WorkOrderPart[]>;
+
+  // Work Requests
+  getWorkRequest(id: number): Promise<WorkRequest | undefined>;
+  getWorkRequestByNumber(number: string): Promise<WorkRequest | undefined>;
+  getWorkRequestDetails(id: number): Promise<WorkRequestWithDetails | undefined>;
+  listWorkRequests(): Promise<WorkRequest[]>;
+  listWorkRequestsWithDetails(): Promise<WorkRequestWithDetails[]>;
+  createWorkRequest(workRequest: InsertWorkRequest): Promise<WorkRequest>;
+  updateWorkRequest(id: number, workRequest: Partial<InsertWorkRequest>): Promise<WorkRequest | undefined>;
+  convertWorkRequestToWorkOrder(id: number, workOrderData?: Partial<InsertWorkOrder>): Promise<WorkOrder | undefined>;
+
+  // Preventive Maintenance
+  getPreventiveMaintenance(id: number): Promise<PreventiveMaintenance | undefined>;
+  getPreventiveMaintenanceDetails(id: number): Promise<PreventiveMaintenanceWithDetails | undefined>;
+  listPreventiveMaintenances(): Promise<PreventiveMaintenance[]>;
+  listPreventiveMaintenancesWithDetails(): Promise<PreventiveMaintenanceWithDetails[]>;
+  createPreventiveMaintenance(pm: InsertPreventiveMaintenance): Promise<PreventiveMaintenance>;
+  updatePreventiveMaintenance(id: number, pm: Partial<InsertPreventiveMaintenance>): Promise<PreventiveMaintenance | undefined>;
+
+  // PM Technicians
+  assignTechnicians(pmId: number, technicianIds: number[]): Promise<PmTechnician[]>;
+  removeTechnician(pmId: number, technicianId: number): Promise<boolean>;
+  listTechniciansForPM(pmId: number): Promise<User[]>;
+
+  // PM Work Orders
+  generateWorkOrdersFromPM(pmId: number): Promise<PmWorkOrder[]>;
+  getWorkOrdersForPM(pmId: number): Promise<(PmWorkOrder & { workOrder: WorkOrder })[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -82,6 +113,10 @@ export class MemStorage implements IStorage {
   private workOrders: Map<number, WorkOrder>;
   private workOrderLabor: Map<number, WorkOrderLabor>;
   private workOrderParts: Map<number, WorkOrderPart>;
+  private workRequests: Map<number, WorkRequest>;
+  private preventiveMaintenance: Map<number, PreventiveMaintenance>;
+  private pmTechnicians: Map<number, PmTechnician>;
+  private pmWorkOrders: Map<number, PmWorkOrder>;
 
   private currentIds: {
     users: number;
@@ -93,6 +128,10 @@ export class MemStorage implements IStorage {
     workOrders: number;
     workOrderLabor: number;
     workOrderParts: number;
+    workRequests: number;
+    preventiveMaintenance: number;
+    pmTechnicians: number;
+    pmWorkOrders: number;
   };
 
   constructor() {

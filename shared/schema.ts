@@ -15,6 +15,18 @@ export const assetStatusEnum = pgEnum('asset_status', [
   'operational', 'non_operational', 'maintenance_required', 'retired'
 ]);
 
+export const userRoleEnum = pgEnum('user_role', [
+  'admin', 'manager', 'technician', 'requester', 'viewer'
+]);
+
+export const maintenanceTypeEnum = pgEnum('maintenance_type', [
+  'inspection', 'service', 'calibration', 'replacement', 'testing', 'other'
+]);
+
+export const recurringPeriodEnum = pgEnum('recurring_period', [
+  'daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'semiannually', 'annually'
+]);
+
 // Users
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -22,8 +34,12 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   fullName: text("full_name").notNull(),
   email: text("email").notNull(),
-  role: text("role").notNull(),
+  role: userRoleEnum("role").notNull().default('viewer'),
   isActive: boolean("is_active").notNull().default(true),
+  jobTitle: text("job_title"),
+  department: text("department"),
+  phone: text("phone"),
+  lastLogin: timestamp("last_login"),
 });
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true });
@@ -184,4 +200,86 @@ export type AssetWithDetails = Asset & {
 // Complete Inventory Item with details
 export type InventoryItemWithDetails = InventoryItem & {
   category?: InventoryCategory;
+};
+
+// Work Requests
+export const workRequests = pgTable("work_requests", {
+  id: serial("id").primaryKey(),
+  requestNumber: text("request_number").notNull().unique(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  assetId: integer("asset_id").references(() => assets.id),
+  priority: workOrderPriorityEnum("priority").notNull().default('medium'),
+  status: workOrderStatusEnum("status").notNull().default('requested'),
+  requestedById: integer("requested_by_id").references(() => users.id).notNull(),
+  dateRequested: timestamp("date_requested").notNull().defaultNow(),
+  dateNeeded: timestamp("date_needed"),
+  location: text("location"),
+  notes: text("notes"),
+  isConverted: boolean("is_converted").notNull().default(false),
+  convertedToWorkOrderId: integer("converted_to_work_order_id").references(() => workOrders.id),
+});
+
+export const insertWorkRequestSchema = createInsertSchema(workRequests).omit({ id: true });
+export type InsertWorkRequest = z.infer<typeof insertWorkRequestSchema>;
+export type WorkRequest = typeof workRequests.$inferSelect;
+
+export type WorkRequestWithDetails = WorkRequest & {
+  asset?: Asset;
+  requestedBy?: User;
+  convertedToWorkOrder?: WorkOrder;
+};
+
+// Preventive Maintenance Schedules
+export const preventiveMaintenance = pgTable("preventive_maintenance", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  assetId: integer("asset_id").references(() => assets.id),
+  maintenanceType: maintenanceTypeEnum("maintenance_type").notNull(),
+  priority: workOrderPriorityEnum("priority").notNull().default('medium'),
+  startDate: timestamp("start_date").notNull(),
+  duration: decimal("duration", { precision: 5, scale: 2 }).notNull(), // in hours
+  createdById: integer("created_by_id").references(() => users.id).notNull(),
+  dateCreated: timestamp("date_created").notNull().defaultNow(),
+  isRecurring: boolean("is_recurring").notNull().default(false),
+  recurringPeriod: recurringPeriodEnum("recurring_period"),
+  occurrences: integer("occurrences"),
+  isActive: boolean("is_active").notNull().default(true),
+  notes: text("notes"),
+});
+
+export const insertPreventiveMaintenanceSchema = createInsertSchema(preventiveMaintenance).omit({ id: true });
+export type InsertPreventiveMaintenance = z.infer<typeof insertPreventiveMaintenanceSchema>;
+export type PreventiveMaintenance = typeof preventiveMaintenance.$inferSelect;
+
+// Preventive Maintenance Technicians (many-to-many)
+export const pmTechnicians = pgTable("pm_technicians", {
+  id: serial("id").primaryKey(),
+  pmId: integer("pm_id").references(() => preventiveMaintenance.id).notNull(),
+  technicianId: integer("technician_id").references(() => users.id).notNull(),
+});
+
+export const insertPmTechnicianSchema = createInsertSchema(pmTechnicians).omit({ id: true });
+export type InsertPmTechnician = z.infer<typeof insertPmTechnicianSchema>;
+export type PmTechnician = typeof pmTechnicians.$inferSelect;
+
+// PM Work Order Instances (generated from PM schedules)
+export const pmWorkOrders = pgTable("pm_work_orders", {
+  id: serial("id").primaryKey(),
+  pmId: integer("pm_id").references(() => preventiveMaintenance.id).notNull(),
+  workOrderId: integer("work_order_id").references(() => workOrders.id).notNull(),
+  scheduledDate: timestamp("scheduled_date").notNull(),
+  occurrenceNumber: integer("occurrence_number"),
+});
+
+export const insertPmWorkOrderSchema = createInsertSchema(pmWorkOrders).omit({ id: true });
+export type InsertPmWorkOrder = z.infer<typeof insertPmWorkOrderSchema>;
+export type PmWorkOrder = typeof pmWorkOrders.$inferSelect;
+
+export type PreventiveMaintenanceWithDetails = PreventiveMaintenance & {
+  asset?: Asset;
+  createdBy?: User;
+  technicians?: User[];
+  generatedWorkOrders?: (PmWorkOrder & { workOrder: WorkOrder })[];
 };
