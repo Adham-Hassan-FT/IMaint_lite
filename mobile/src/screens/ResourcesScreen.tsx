@@ -1,209 +1,330 @@
-import React, { useEffect, useState } from 'react';
-import { View, FlatList, StyleSheet, RefreshControl, TouchableOpacity } from 'react-native';
-import { Card, FAB, Searchbar, Text, Title, useTheme, ActivityIndicator, Avatar, Divider } from 'react-native-paper';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Text,
+  Dimensions,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Card,
+  Avatar,
+  Title,
+  Paragraph,
+  Badge,
+  Divider,
+  Searchbar,
+  FAB,
+  Chip,
+  Button,
+  ActivityIndicator,
+  useTheme,
+} from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { get } from '../lib/api';
 import { useNavigation } from '@react-navigation/native';
-import { User } from '../../../shared/schema';
-import { useAuth } from '../hooks/useAuth';
+import axios from 'axios';
 
 const ResourcesScreen = () => {
-  const theme = useTheme();
-  const navigation = useNavigation();
-  const { user: currentUser } = useAuth();
-  
-  const [users, setUsers] = useState<User[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+  const [resources, setResources] = useState([]);
+  const [filteredResources, setFilteredResources] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [availabilityFilter, setAvailabilityFilter] = useState(null);
   
-  const fetchUsers = async () => {
-    setLoading(true);
-    try {
-      const data = await get<User[]>('/api/users');
-      setUsers(data);
-      setFilteredUsers(data);
-    } catch (error) {
-      console.error('Failed to fetch users:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  };
-  
+  const theme = useTheme();
+  const screenWidth = Dimensions.get('window').width;
+  const isSmallScreen = screenWidth < 768;
+
   useEffect(() => {
-    fetchUsers();
+    fetchResources();
   }, []);
-  
-  const onRefresh = React.useCallback(() => {
-    setRefreshing(true);
-    fetchUsers();
-  }, []);
-  
-  const onChangeSearch = (query: string) => {
-    setSearchQuery(query);
-    if (query.trim() === '') {
-      setFilteredUsers(users);
-    } else {
-      const filtered = users.filter(
-        (user) => 
-          user.fullName.toLowerCase().includes(query.toLowerCase()) ||
-          user.username.toLowerCase().includes(query.toLowerCase()) ||
-          user.email.toLowerCase().includes(query.toLowerCase()) ||
-          user.role.toLowerCase().includes(query.toLowerCase())
-      );
-      setFilteredUsers(filtered);
+
+  useEffect(() => {
+    filterResources();
+  }, [searchQuery, availabilityFilter, resources]);
+
+  const fetchResources = async () => {
+    try {
+      setLoading(true);
+      // In a real app, this would fetch from the API
+      // For now, using mock data
+      setTimeout(() => {
+        const mockResources = [
+          {
+            id: 1,
+            name: 'John Smith',
+            role: 'Technician',
+            skills: ['HVAC', 'Electrical', 'Plumbing'],
+            email: 'john.smith@example.com',
+            phone: '555-123-4567',
+            status: 'available',
+            currentTask: null,
+            avatar: 'JS',
+          },
+          {
+            id: 2,
+            name: 'Maria Rodriguez',
+            role: 'Inspector',
+            skills: ['Quality Control', 'Documentation', 'Safety Compliance'],
+            email: 'maria.rodriguez@example.com',
+            phone: '555-987-6543',
+            status: 'busy',
+            currentTask: 'Inspecting Building A',
+            avatar: 'MR',
+          },
+          {
+            id: 3,
+            name: 'David Chen',
+            role: 'Mechanic',
+            skills: ['Engines', 'Hydraulics', 'Welding'],
+            email: 'david.chen@example.com',
+            phone: '555-456-7890',
+            status: 'available',
+            currentTask: null,
+            avatar: 'DC',
+          },
+        ];
+        setResources(mockResources);
+        setFilteredResources(mockResources);
+        setLoading(false);
+      }, 1000);
+    } catch (error) {
+      console.error('Error fetching resources:', error);
+      setLoading(false);
     }
   };
-  
-  // Helper function to get role color
-  const getRoleColor = (role: string) => {
-    switch (role.toLowerCase()) {
-      case 'admin': return '#ef4444';
-      case 'manager': return '#3b82f6';
-      case 'technician': return '#10b981';
-      case 'supervisor': return '#f59e0b';
-      default: return '#6b7280';
-    }
-  };
-  
-  // Helper to get user initials for avatar
-  const getUserInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 2);
-  };
-  
-  // Helper to get user role icon
-  const getUserRoleIcon = (role: string) => {
-    switch (role.toLowerCase()) {
-      case 'admin': return 'shield-account';
-      case 'manager': return 'account-tie';
-      case 'technician': return 'account-wrench';
-      case 'supervisor': return 'account-star';
-      default: return 'account';
-    }
-  };
-  
-  const renderUserCard = ({ item }: { item: User }) => {
-    const isCurrentUser = currentUser?.id === item.id;
-    const roleColor = getRoleColor(item.role);
+
+  const filterResources = () => {
+    let filtered = [...resources];
     
-    return (
-      <TouchableOpacity>
-        <Card 
-          style={[
-            styles.card, 
-            isCurrentUser && styles.currentUserCard
-          ]}
-        >
-          <Card.Content>
-            <View style={styles.userHeader}>
-              <Avatar.Text 
-                size={50} 
-                label={getUserInitials(item.fullName)}
-                style={{ backgroundColor: roleColor }}
-              />
-              <View style={styles.userInfo}>
-                <Title style={styles.userName}>{item.fullName}</Title>
-                <View style={styles.roleContainer}>
-                  <MaterialCommunityIcons 
-                    name={getUserRoleIcon(item.role)} 
-                    size={16} 
-                    color={roleColor} 
-                    style={styles.roleIcon}
-                  />
-                  <Text style={[styles.roleText, { color: roleColor }]}>
-                    {item.role}
-                  </Text>
-                </View>
-              </View>
-            </View>
-            
-            <Divider style={styles.divider} />
-            
-            <View style={styles.contactContainer}>
-              <View style={styles.contactItem}>
-                <MaterialCommunityIcons 
-                  name="account" 
-                  size={16} 
-                  color="#666" 
-                  style={styles.contactIcon}
-                />
-                <Text style={styles.contactText}>{item.username}</Text>
-              </View>
-              
-              <View style={styles.contactItem}>
-                <MaterialCommunityIcons 
-                  name="email" 
-                  size={16} 
-                  color="#666" 
-                  style={styles.contactIcon}
-                />
-                <Text style={styles.contactText}>{item.email}</Text>
-              </View>
-            </View>
-            
-            {isCurrentUser && (
-              <View style={styles.currentUserBadge}>
-                <Text style={styles.currentUserText}>You</Text>
-              </View>
-            )}
-          </Card.Content>
-        </Card>
-      </TouchableOpacity>
-    );
+    // Apply search query filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        resource => 
+          resource.name.toLowerCase().includes(query) ||
+          resource.role.toLowerCase().includes(query) ||
+          resource.skills.some(skill => skill.toLowerCase().includes(query))
+      );
+    }
+    
+    // Apply availability filter
+    if (availabilityFilter) {
+      filtered = filtered.filter(resource => resource.status === availabilityFilter);
+    }
+    
+    setFilteredResources(filtered);
   };
-  
-  return (
-    <View style={styles.container}>
-      <Searchbar
-        placeholder="Search users"
-        onChangeText={onChangeSearch}
-        value={searchQuery}
-        style={styles.searchBar}
+
+  const onSearchChange = (query) => {
+    setSearchQuery(query);
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'available':
+        return '#10b981'; // green
+      case 'busy':
+        return '#f59e0b'; // amber
+      case 'unavailable':
+        return '#ef4444'; // red
+      default:
+        return '#6b7280'; // gray
+    }
+  };
+
+  const renderResource = ({ item }) => (
+    <Card style={styles.resourceCard}>
+      <Card.Content>
+        <View style={styles.resourceHeader}>
+          <View style={styles.resourceInfo}>
+            <Avatar.Text
+              size={50}
+              label={item.avatar}
+              style={{ backgroundColor: theme.colors.primary }}
+            />
+            <View style={styles.resourceDetails}>
+              <Title style={styles.resourceName}>{item.name}</Title>
+              <Paragraph style={styles.resourceRole}>{item.role}</Paragraph>
+            </View>
+          </View>
+          <Badge 
+            style={[
+              styles.statusBadge, 
+              { backgroundColor: getStatusColor(item.status) }
+            ]}
+          >
+            {item.status === 'available' ? 'Available' : item.status === 'busy' ? 'Busy' : 'Unavailable'}
+          </Badge>
+        </View>
+        
+        {item.currentTask && (
+          <View style={styles.currentTaskContainer}>
+            <Text style={styles.currentTaskLabel}>Current Task:</Text>
+            <Text style={styles.currentTask}>{item.currentTask}</Text>
+          </View>
+        )}
+        
+        <View style={styles.skillsContainer}>
+          <Text style={styles.skillsLabel}>Skills:</Text>
+          <View style={styles.skillsChips}>
+            {item.skills.map((skill, index) => (
+              <Chip 
+                key={index} 
+                style={styles.skillChip}
+                textStyle={styles.skillChipText}
+              >
+                {skill}
+              </Chip>
+            ))}
+          </View>
+        </View>
+        
+        <Divider style={styles.divider} />
+        
+        <View style={styles.contactContainer}>
+          <View style={styles.contactItem}>
+            <MaterialCommunityIcons name="email" size={16} color="#6b7280" />
+            <Text style={styles.contactText}>{item.email}</Text>
+          </View>
+          <View style={styles.contactItem}>
+            <MaterialCommunityIcons name="phone" size={16} color="#6b7280" />
+            <Text style={styles.contactText}>{item.phone}</Text>
+          </View>
+        </View>
+        
+        <View style={styles.actionsContainer}>
+          <Button 
+            mode="outlined" 
+            icon="calendar" 
+            style={styles.actionButton}
+            onPress={() => {}}
+          >
+            Schedule
+          </Button>
+          <Button 
+            mode="outlined" 
+            icon="account-details" 
+            style={styles.actionButton}
+            onPress={() => {}}
+          >
+            Details
+          </Button>
+        </View>
+      </Card.Content>
+    </Card>
+  );
+
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <MaterialCommunityIcons 
+        name="account-group" 
+        size={60} 
+        color="#d1d5db" 
       />
+      <Text style={styles.emptyStateText}>
+        {searchQuery || availabilityFilter
+          ? 'No resources match your search criteria'
+          : 'No resources found'}
+      </Text>
+      {(searchQuery || availabilityFilter) && (
+        <Button 
+          mode="outlined" 
+          onPress={() => {
+            setSearchQuery('');
+            setAvailabilityFilter(null);
+          }}
+          style={styles.clearFiltersButton}
+        >
+          Clear Filters
+        </Button>
+      )}
+    </View>
+  );
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.searchContainer}>
+        <Searchbar
+          placeholder="Search resources"
+          onChangeText={onSearchChange}
+          value={searchQuery}
+          style={styles.searchBar}
+        />
+      </View>
       
-      {loading && !refreshing ? (
+      <View style={styles.filterContainer}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+        >
+          <Chip
+            selected={availabilityFilter === 'available'}
+            onPress={() => setAvailabilityFilter(
+              availabilityFilter === 'available' ? null : 'available'
+            )}
+            style={[
+              styles.filterChip,
+              availabilityFilter === 'available' && { backgroundColor: '#10b981' }
+            ]}
+            textStyle={availabilityFilter === 'available' ? { color: 'white' } : null}
+          >
+            Available
+          </Chip>
+          
+          <Chip
+            selected={availabilityFilter === 'busy'}
+            onPress={() => setAvailabilityFilter(
+              availabilityFilter === 'busy' ? null : 'busy'
+            )}
+            style={[
+              styles.filterChip,
+              availabilityFilter === 'busy' && { backgroundColor: '#f59e0b' }
+            ]}
+            textStyle={availabilityFilter === 'busy' ? { color: 'white' } : null}
+          >
+            Busy
+          </Chip>
+          
+          <Chip
+            selected={availabilityFilter === 'unavailable'}
+            onPress={() => setAvailabilityFilter(
+              availabilityFilter === 'unavailable' ? null : 'unavailable'
+            )}
+            style={[
+              styles.filterChip,
+              availabilityFilter === 'unavailable' && { backgroundColor: '#ef4444' }
+            ]}
+            textStyle={availabilityFilter === 'unavailable' ? { color: 'white' } : null}
+          >
+            Unavailable
+          </Chip>
+        </ScrollView>
+      </View>
+      
+      {loading ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={styles.loadingText}>Loading users...</Text>
         </View>
       ) : (
         <FlatList
-          data={filteredUsers}
-          renderItem={renderUserCard}
-          keyExtractor={(item) => item.id.toString()}
+          data={filteredResources}
+          renderItem={renderResource}
+          keyExtractor={item => item.id.toString()}
           contentContainerStyle={styles.listContainer}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons 
-                name="account-group" 
-                size={64} 
-                color="#ccc" 
-              />
-              <Text style={styles.emptyText}>No users found</Text>
-            </View>
-          }
+          ListEmptyComponent={renderEmptyState}
         />
       )}
       
-      {currentUser?.role.toLowerCase() === 'admin' && (
-        <FAB
-          style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-          icon="account-plus"
-          onPress={() => navigation.navigate('AddUser')}
-          color="white"
-        />
-      )}
-    </View>
+      <FAB
+        icon="plus"
+        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+        onPress={() => {}}
+        label={isSmallScreen ? undefined : "Add Resource"}
+      />
+    </SafeAreaView>
   );
 };
 
@@ -212,100 +333,136 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  searchBar: {
-    margin: 16,
-    elevation: 2,
-    backgroundColor: 'white',
-  },
-  listContainer: {
+  searchContainer: {
     padding: 16,
-    paddingBottom: 80, // Extra padding for FAB
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
-  card: {
-    marginBottom: 16,
-    elevation: 2,
+  searchBar: {
+    backgroundColor: '#f3f4f6',
   },
-  currentUserCard: {
-    borderWidth: 2,
-    borderColor: '#3b82f6',
-  },
-  userHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  userInfo: {
-    marginLeft: 16,
-    flex: 1,
-  },
-  userName: {
-    fontSize: 18,
-  },
-  roleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 4,
-  },
-  roleIcon: {
-    marginRight: 4,
-  },
-  roleText: {
-    fontWeight: '500',
-  },
-  divider: {
-    marginVertical: 12,
-  },
-  contactContainer: {
-    marginTop: 4,
-  },
-  contactItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  contactIcon: {
-    marginRight: 8,
-  },
-  contactText: {
-    color: '#666',
-  },
-  currentUserBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    backgroundColor: '#3b82f6',
+  filterContainer: {
+    backgroundColor: '#fff',
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
   },
-  currentUserText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
+  filterChip: {
+    margin: 8,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  loadingText: {
-    marginTop: 10,
+  listContainer: {
+    padding: 16,
   },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  resourceCard: {
+    marginBottom: 16,
+    borderRadius: 10,
+  },
+  resourceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  resourceInfo: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 100,
   },
-  emptyText: {
-    marginTop: 16,
-    color: '#666',
-    fontSize: 16,
+  resourceDetails: {
+    marginLeft: 16,
+  },
+  resourceName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  resourceRole: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  statusBadge: {
+    alignSelf: 'flex-start',
+  },
+  currentTaskContainer: {
+    marginBottom: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  currentTaskLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginRight: 8,
+  },
+  currentTask: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  skillsContainer: {
+    marginBottom: 16,
+  },
+  skillsLabel: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginBottom: 8,
+  },
+  skillsChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  skillChip: {
+    margin: 4,
+  },
+  skillChipText: {
+    fontSize: 12,
+  },
+  divider: {
+    marginBottom: 16,
+  },
+  contactContainer: {
+    marginBottom: 16,
+  },
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  contactText: {
+    fontSize: 14,
+    color: '#6b7280',
+    marginLeft: 8,
+  },
+  actionsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  actionButton: {
+    flex: 1,
+    marginHorizontal: 8,
   },
   fab: {
     position: 'absolute',
     margin: 16,
     right: 0,
     bottom: 0,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+  },
+  emptyStateText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6b7280',
+    textAlign: 'center',
+  },
+  clearFiltersButton: {
+    marginTop: 16,
   },
 });
 

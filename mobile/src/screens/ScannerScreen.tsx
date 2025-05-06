@@ -1,267 +1,217 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, Alert } from 'react-native';
-import { Camera } from 'expo-camera';
-import { BarCodeScanner, BarCodeScannerResult } from 'expo-barcode-scanner';
-import { useIsFocused, useNavigation } from '@react-navigation/native';
-import { IconButton, ActivityIndicator, Button, Card } from 'react-native-paper';
+import {
+  StyleSheet,
+  Text,
+  View,
+  TouchableOpacity,
+  Platform,
+  Dimensions,
+  Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  ActivityIndicator,
+  Button,
+  IconButton,
+  Card,
+  Title,
+  Paragraph,
+  useTheme,
+  List,
+  Divider,
+} from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { get } from '../lib/api';
-import { Asset, WorkOrder, InventoryItem } from '../../../shared/schema';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { MainStackParamList } from '../navigation/MainNavigator';
+import { BarCodeScanner } from 'expo-barcode-scanner';
+import axios from 'axios';
 
-// Types for scan data
-interface ScanResult {
-  type: 'asset' | 'workOrder' | 'inventoryItem' | 'unknown';
-  data: Asset | WorkOrder | InventoryItem | null;
-  code: string;
-}
+type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
+
+type ScannedItem = {
+  type: 'asset' | 'inventory' | 'unknown';
+  id: number;
+  number: string;
+  description: string;
+  details: string[];
+};
 
 const ScannerScreen = () => {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [scanned, setScanned] = useState(false);
-  const [flashMode, setFlashMode] = useState(Camera.Constants.FlashMode.off);
+  const [scanning, setScanning] = useState(true);
+  const [flashOn, setFlashOn] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
+  const [scannedItem, setScannedItem] = useState<ScannedItem | null>(null);
+  const [cameraFacing, setCameraFacing] = useState(BarCodeScanner.Constants.Type.back);
   
-  const isFocused = useIsFocused();
-  const navigation = useNavigation();
-  
+  const theme = useTheme();
+  const navigation = useNavigation<NavigationProp>();
+  const { width } = Dimensions.get('window');
+
+  // Request camera permission
   useEffect(() => {
     (async () => {
-      const { status } = await Camera.requestPermissionsAsync();
+      if (Platform.OS === 'web') {
+        setHasPermission(true);
+        return;
+      }
+      
+      const { status } = await BarCodeScanner.requestPermissionsAsync();
       setHasPermission(status === 'granted');
     })();
   }, []);
-  
-  useEffect(() => {
-    // Reset scan when screen is focused again
-    if (isFocused) {
-      setScanned(false);
-      setScanResult(null);
-    }
-  }, [isFocused]);
-  
-  const handleBarCodeScanned = async ({ type, data }: BarCodeScannerResult) => {
+
+  // Handle barcode scanning
+  const handleBarCodeScanned = async ({ type, data }: { type: string; data: string }) => {
+    if (scanned || loading) return;
+    
     setScanned(true);
+    setScanning(false);
     setLoading(true);
     
     try {
-      // Check the format to determine what was scanned
-      if (data.startsWith('ASSET-')) {
-        const assetNumber = data.replace('ASSET-', '');
-        await handleAssetScan(assetNumber);
-      } else if (data.startsWith('WO-')) {
-        const workOrderNumber = data;
-        await handleWorkOrderScan(workOrderNumber);
-      } else if (data.startsWith('INV-')) {
-        const partNumber = data.replace('INV-', '');
-        await handleInventoryScan(partNumber);
-      } else {
-        // Try to identify the code format
-        if (/^[A-Za-z]{2,3}-\d{4,}$/.test(data)) {
-          // Could be a custom format, try all APIs
-          await tryIdentifyScan(data);
-        } else {
-          // Unknown format
-          setScanResult({
-            type: 'unknown',
-            data: null,
-            code: data
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error processing scan:', error);
-      Alert.alert('Scan Error', 'Failed to process the scan. Please try again.');
-      setScanResult({
-        type: 'unknown',
-        data: null,
-        code: data
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-  
-  const handleAssetScan = async (assetNumber: string) => {
-    try {
-      const asset = await get<Asset>(`/api/assets/byNumber/${assetNumber}`);
+      // Try to find the scanned item
+      console.log(`Barcode with type ${type} and data ${data} has been scanned`);
       
-      if (asset) {
-        setScanResult({
+      // Check if it's an asset
+      const assetResponse = await axios.get(`/api/assets/by-number/${data}`);
+      if (assetResponse.data) {
+        const asset = assetResponse.data;
+        setScannedItem({
           type: 'asset',
-          data: asset,
-          code: assetNumber
+          id: asset.id,
+          number: asset.assetNumber,
+          description: asset.description,
+          details: [
+            `Type: ${asset.type?.name || 'Unknown'}`,
+            `Status: ${formatStatus(asset.status)}`,
+            `Location: ${asset.location || 'N/A'}`,
+            `Manufacturer: ${asset.manufacturer || 'N/A'}`,
+            `Model: ${asset.model || 'N/A'}`,
+            `Serial Number: ${asset.serialNumber || 'N/A'}`,
+          ],
         });
-      } else {
-        setScanResult({
-          type: 'unknown',
-          data: null,
-          code: assetNumber
-        });
+        setLoading(false);
+        return;
       }
     } catch (error) {
-      console.error('Asset lookup error:', error);
-      setScanResult({
-        type: 'unknown',
-        data: null,
-        code: assetNumber
-      });
+      // Not an asset, try inventory
+      try {
+        const inventoryResponse = await axios.get(`/api/inventory/by-number/${data}`);
+        if (inventoryResponse.data) {
+          const item = inventoryResponse.data;
+          setScannedItem({
+            type: 'inventory',
+            id: item.id,
+            number: item.partNumber,
+            description: item.description,
+            details: [
+              `Category: ${item.category?.name || 'Unknown'}`,
+              `Quantity: ${item.quantity} ${item.unit}`,
+              `Location: ${item.location || 'N/A'}`,
+              `Unit Cost: ${formatCurrency(item.unitCost)}`,
+              `Min Quantity: ${item.minQuantity}`,
+              `Status: ${item.quantity === 0 ? 'Out of Stock' : item.quantity <= item.minQuantity ? 'Low Stock' : 'In Stock'}`,
+            ],
+          });
+          setLoading(false);
+          return;
+        }
+      } catch (error) {
+        // Not found in either assets or inventory
+        setScannedItem({
+          type: 'unknown',
+          id: 0,
+          number: data,
+          description: 'Unknown Item',
+          details: [
+            'This barcode does not match any known asset or inventory item.',
+            'Would you like to add it to the system?'
+          ],
+        });
+        setLoading(false);
+      }
+    }
+  };
+
+  const formatStatus = (status: string) => {
+    return status.split('-').map(word => 
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+    }).format(amount);
+  };
+
+  const handleViewDetails = () => {
+    if (!scannedItem) return;
+    
+    if (scannedItem.type === 'asset') {
+      navigation.navigate('AssetDetail', { assetId: scannedItem.id });
+    } else if (scannedItem.type === 'inventory') {
+      navigation.navigate('InventoryDetail', { itemId: scannedItem.id });
     }
   };
   
-  const handleWorkOrderScan = async (workOrderNumber: string) => {
-    try {
-      const workOrder = await get<WorkOrder>(`/api/work-orders/byNumber/${workOrderNumber}`);
-      
-      if (workOrder) {
-        setScanResult({
-          type: 'workOrder',
-          data: workOrder,
-          code: workOrderNumber
-        });
-      } else {
-        setScanResult({
-          type: 'unknown',
-          data: null,
-          code: workOrderNumber
-        });
-      }
-    } catch (error) {
-      console.error('Work order lookup error:', error);
-      setScanResult({
-        type: 'unknown',
-        data: null,
-        code: workOrderNumber
-      });
-    }
+  const handleAddNewItem = () => {
+    if (!scannedItem) return;
+    
+    // For now, just show an alert. In a real app, navigate to the appropriate form.
+    Alert.alert(
+      'Add New Item',
+      `Would you like to add ${scannedItem.number} as an asset or inventory item?`,
+      [
+        {
+          text: 'Asset',
+          onPress: () => {
+            // Navigate to add asset form with pre-filled barcode
+            Alert.alert('Not implemented', 'This functionality is not yet implemented.');
+          },
+        },
+        {
+          text: 'Inventory',
+          onPress: () => {
+            // Navigate to add inventory form with pre-filled barcode
+            Alert.alert('Not implemented', 'This functionality is not yet implemented.');
+          },
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ]
+    );
   };
-  
-  const handleInventoryScan = async (partNumber: string) => {
-    try {
-      const inventoryItem = await get<InventoryItem>(`/api/inventory-items/byPartNumber/${partNumber}`);
-      
-      if (inventoryItem) {
-        setScanResult({
-          type: 'inventoryItem',
-          data: inventoryItem,
-          code: partNumber
-        });
-      } else {
-        setScanResult({
-          type: 'unknown',
-          data: null,
-          code: partNumber
-        });
-      }
-    } catch (error) {
-      console.error('Inventory lookup error:', error);
-      setScanResult({
-        type: 'unknown',
-        data: null,
-        code: partNumber
-      });
-    }
-  };
-  
-  const tryIdentifyScan = async (code: string) => {
-    try {
-      // Try asset first
-      try {
-        const asset = await get<Asset>(`/api/assets/byNumber/${code}`);
-        if (asset) {
-          setScanResult({
-            type: 'asset',
-            data: asset,
-            code
-          });
-          return;
-        }
-      } catch (e) {
-        // Continue to next check
-      }
-      
-      // Try work order
-      try {
-        const workOrder = await get<WorkOrder>(`/api/work-orders/byNumber/${code}`);
-        if (workOrder) {
-          setScanResult({
-            type: 'workOrder',
-            data: workOrder,
-            code
-          });
-          return;
-        }
-      } catch (e) {
-        // Continue to next check
-      }
-      
-      // Try inventory
-      try {
-        const inventoryItem = await get<InventoryItem>(`/api/inventory-items/byPartNumber/${code}`);
-        if (inventoryItem) {
-          setScanResult({
-            type: 'inventoryItem',
-            data: inventoryItem,
-            code
-          });
-          return;
-        }
-      } catch (e) {
-        // Continue to fallback
-      }
-      
-      // If we get here, nothing was found
-      setScanResult({
-        type: 'unknown',
-        data: null,
-        code
-      });
-      
-    } catch (error) {
-      console.error('Scan identification error:', error);
-      setScanResult({
-        type: 'unknown',
-        data: null,
-        code
-      });
-    }
+
+  const resetScanner = () => {
+    setScanned(false);
+    setScanning(true);
+    setScannedItem(null);
   };
   
   const toggleFlash = () => {
-    setFlashMode(
-      flashMode === Camera.Constants.FlashMode.off
-        ? Camera.Constants.FlashMode.torch
-        : Camera.Constants.FlashMode.off
+    setFlashOn(!flashOn);
+  };
+  
+  const toggleCamera = () => {
+    setCameraFacing(
+      cameraFacing === BarCodeScanner.Constants.Type.back
+        ? BarCodeScanner.Constants.Type.front
+        : BarCodeScanner.Constants.Type.back
     );
   };
-  
-  const scanAgain = () => {
-    setScanned(false);
-    setScanResult(null);
-  };
-  
-  const navigateToScannedItem = () => {
-    if (!scanResult || !scanResult.data) return;
-    
-    switch (scanResult.type) {
-      case 'asset':
-        navigation.navigate('AssetDetail', { assetId: (scanResult.data as Asset).id });
-        break;
-      case 'workOrder':
-        navigation.navigate('WorkOrderDetail', { workOrderId: (scanResult.data as WorkOrder).id });
-        break;
-      case 'inventoryItem':
-        navigation.navigate('InventoryDetail', { itemId: (scanResult.data as InventoryItem).id });
-        break;
-      default:
-        Alert.alert('Error', 'Cannot navigate to this item type');
-    }
-  };
-  
+
+  // Handle permission states
   if (hasPermission === null) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#3b82f6" />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text style={styles.text}>Requesting camera permission...</Text>
       </View>
     );
@@ -270,137 +220,262 @@ const ScannerScreen = () => {
   if (hasPermission === false) {
     return (
       <View style={styles.container}>
-        <MaterialCommunityIcons name="camera-off" size={64} color="#ef4444" />
+        <MaterialCommunityIcons 
+          name="camera-off" 
+          size={50} 
+          color="#ef4444" 
+        />
         <Text style={styles.text}>No access to camera</Text>
+        <Text style={styles.subText}>
+          Camera access is required to scan barcodes. Please enable camera permissions in your device settings.
+        </Text>
         <Button 
           mode="contained" 
-          onPress={() => navigation.goBack()}
-          style={{ marginTop: 16 }}
+          onPress={() => {
+            if (Platform.OS !== 'web') {
+              BarCodeScanner.requestPermissionsAsync();
+            }
+          }}
+          style={{ marginTop: 20 }}
         >
-          Go Back
+          Request Permission Again
         </Button>
       </View>
     );
   }
-  
-  const renderScanResult = () => {
-    if (!scanResult) return null;
-    
-    let icon, title, subtitle, color;
-    
-    switch (scanResult.type) {
-      case 'asset':
-        icon = 'engine';
-        title = (scanResult.data as Asset)?.description || 'Asset';
-        subtitle = `Asset #${scanResult.code}`;
-        color = '#3b82f6';
-        break;
-      case 'workOrder':
-        icon = 'clipboard-text';
-        title = (scanResult.data as WorkOrder)?.title || 'Work Order';
-        subtitle = `Work Order #${scanResult.code}`;
-        color = '#f59e0b';
-        break;
-      case 'inventoryItem':
-        icon = 'package-variant-closed';
-        title = (scanResult.data as InventoryItem)?.description || 'Inventory Item';
-        subtitle = `Part #${scanResult.code}`;
-        color = '#10b981';
-        break;
-      default:
-        icon = 'help-circle';
-        title = 'Unknown Item';
-        subtitle = `Code: ${scanResult.code}`;
-        color = '#9ca3af';
-    }
-    
-    return (
-      <Card style={styles.resultCard}>
-        <Card.Content style={styles.resultContent}>
-          <MaterialCommunityIcons name={icon as any} size={48} color={color} style={styles.resultIcon} />
-          <View style={styles.resultTextContainer}>
-            <Text style={styles.resultTitle}>{title}</Text>
-            <Text style={styles.resultSubtitle}>{subtitle}</Text>
-          </View>
-        </Card.Content>
-        <Card.Actions style={styles.resultActions}>
-          {scanResult.type !== 'unknown' && scanResult.data && (
-            <Button 
-              mode="contained" 
-              onPress={navigateToScannedItem}
-              style={{ backgroundColor: color }}
-            >
-              View Details
-            </Button>
-          )}
-          <Button 
-            mode="outlined" 
-            onPress={scanAgain}
-            style={{ marginLeft: 8 }}
-          >
-            Scan Again
-          </Button>
-        </Card.Actions>
-      </Card>
-    );
-  };
-  
+
   return (
-    <View style={styles.container}>
-      {!scanned ? (
-        <>
-          <Camera
-            style={styles.camera}
-            type={Camera.Constants.Type.back}
-            flashMode={flashMode}
-            barCodeScannerSettings={{
-              barCodeTypes: [
+    <SafeAreaView style={styles.container}>
+      {scanning ? (
+        <View style={styles.scannerContainer}>
+          {Platform.OS !== 'web' ? (
+            <BarCodeScanner
+              onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
+              style={StyleSheet.absoluteFillObject}
+              type={cameraFacing}
+              barCodeTypes={[
                 BarCodeScanner.Constants.BarCodeType.qr,
                 BarCodeScanner.Constants.BarCodeType.code128,
                 BarCodeScanner.Constants.BarCodeType.code39,
-                BarCodeScanner.Constants.BarCodeType.code93,
                 BarCodeScanner.Constants.BarCodeType.ean13,
                 BarCodeScanner.Constants.BarCodeType.ean8,
                 BarCodeScanner.Constants.BarCodeType.upc_e,
-              ],
-            }}
-            onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
-          >
-            <View style={styles.overlay}>
-              <View style={styles.scanArea}>
-                <View style={styles.scanAreaCorner} />
-                <View style={styles.scanAreaCorner} />
-                <View style={styles.scanAreaCorner} />
-                <View style={styles.scanAreaCorner} />
-              </View>
-              
-              <Text style={styles.instructions}>
-                Align barcode or QR code within the frame
-              </Text>
-              
-              <IconButton
-                icon={flashMode === Camera.Constants.FlashMode.torch ? "flash" : "flash-off"}
-                iconColor="white"
-                size={30}
-                onPress={toggleFlash}
-                style={styles.flashButton}
+              ]}
+              flashMode={
+                flashOn
+                  ? BarCodeScanner.Constants.FlashMode.torch
+                  : BarCodeScanner.Constants.FlashMode.off
+              }
+            />
+          ) : (
+            <View style={styles.webCameraPlaceholder}>
+              <MaterialCommunityIcons 
+                name="camera" 
+                size={50} 
+                color="#fff" 
               />
+              <Text style={styles.webCameraText}>
+                Camera access is limited in web browsers.
+              </Text>
+              <Button 
+                mode="contained" 
+                onPress={() => {
+                  // Simulate a barcode scan for web demo
+                  handleBarCodeScanned({ 
+                    type: 'QR', 
+                    data: 'A-001' 
+                  });
+                }}
+                style={{ marginTop: 20 }}
+              >
+                Simulate Asset Scan
+              </Button>
+              <Button 
+                mode="outlined" 
+                onPress={() => {
+                  // Simulate a barcode scan for web demo
+                  handleBarCodeScanned({ 
+                    type: 'QR', 
+                    data: 'INV-001' 
+                  });
+                }}
+                style={{ marginTop: 10 }}
+              >
+                Simulate Inventory Scan
+              </Button>
             </View>
-          </Camera>
-        </>
+          )}
+          
+          <View style={styles.scannerOverlay}>
+            <View style={styles.scannerTargetRow}>
+              <View style={styles.scannerTargetCorner} />
+              <View style={styles.scannerTargetSpacer} />
+              <View style={[styles.scannerTargetCorner, styles.scannerTargetTopRight]} />
+            </View>
+            
+            <View style={styles.scannerTargetMiddle}>
+              <View style={styles.scannerTargetSide} />
+              <View style={styles.scannerTargetCenter} />
+              <View style={styles.scannerTargetSide} />
+            </View>
+            
+            <View style={styles.scannerTargetRow}>
+              <View style={[styles.scannerTargetCorner, styles.scannerTargetBottomLeft]} />
+              <View style={styles.scannerTargetSpacer} />
+              <View style={[styles.scannerTargetCorner, styles.scannerTargetBottomRight]} />
+            </View>
+          </View>
+          
+          <View style={styles.scannerHeader}>
+            <Text style={styles.scannerTitle}>Scan Barcode</Text>
+            <Text style={styles.scannerSubtitle}>Position barcode within frame</Text>
+          </View>
+          
+          <View style={styles.controlsContainer}>
+            {Platform.OS !== 'web' && (
+              <>
+                <IconButton
+                  icon={flashOn ? "flash" : "flash-off"}
+                  iconColor="#fff"
+                  size={30}
+                  onPress={toggleFlash}
+                  style={styles.controlButton}
+                />
+                <IconButton
+                  icon="camera-switch"
+                  iconColor="#fff"
+                  size={30}
+                  onPress={toggleCamera}
+                  style={styles.controlButton}
+                />
+              </>
+            )}
+          </View>
+        </View>
       ) : (
-        <View style={styles.resultContainer}>
+        <View style={styles.resultsContainer}>
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#3b82f6" />
-              <Text style={styles.loadingText}>Processing scan...</Text>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text style={styles.loadingText}>Searching for item...</Text>
             </View>
+          ) : scannedItem ? (
+            <Card style={styles.resultCard}>
+              <Card.Content>
+                <View style={styles.resultHeader}>
+                  <MaterialCommunityIcons
+                    name={
+                      scannedItem.type === 'asset'
+                        ? 'dolly'
+                        : scannedItem.type === 'inventory'
+                        ? 'package-variant'
+                        : 'help-circle'
+                    }
+                    size={36}
+                    color={
+                      scannedItem.type === 'asset'
+                        ? '#3b82f6'
+                        : scannedItem.type === 'inventory'
+                        ? '#10b981'
+                        : '#f59e0b'
+                    }
+                  />
+                  <View style={styles.resultHeaderText}>
+                    <Text style={styles.resultType}>
+                      {scannedItem.type === 'asset'
+                        ? 'Asset'
+                        : scannedItem.type === 'inventory'
+                        ? 'Inventory Item'
+                        : 'Unknown Item'}
+                    </Text>
+                    <Text style={styles.resultNumber}>{scannedItem.number}</Text>
+                  </View>
+                </View>
+
+                <Divider style={styles.resultDivider} />
+                
+                <Text style={styles.resultTitle}>{scannedItem.description}</Text>
+                
+                <List.Section>
+                  {scannedItem.details.map((detail, index) => (
+                    <List.Item
+                      key={index}
+                      title={detail}
+                      left={() => 
+                        <List.Icon 
+                          icon={
+                            detail.includes('Type') || detail.includes('Category')
+                              ? 'tag'
+                              : detail.includes('Status')
+                              ? 'information'
+                              : detail.includes('Location')
+                              ? 'map-marker'
+                              : detail.includes('Manufacturer') || detail.includes('Model')
+                              ? 'factory'
+                              : detail.includes('Serial')
+                              ? 'barcode'
+                              : detail.includes('Quantity')
+                              ? 'counter'
+                              : detail.includes('Cost')
+                              ? 'currency-usd'
+                              : 'text'
+                          }
+                        />
+                      }
+                      titleStyle={styles.detailText}
+                    />
+                  ))}
+                </List.Section>
+                
+                <View style={styles.actionButtonsContainer}>
+                  {scannedItem.type !== 'unknown' ? (
+                    <Button
+                      mode="contained"
+                      onPress={handleViewDetails}
+                      style={styles.viewDetailsButton}
+                    >
+                      View Details
+                    </Button>
+                  ) : (
+                    <Button
+                      mode="contained"
+                      onPress={handleAddNewItem}
+                      style={styles.viewDetailsButton}
+                    >
+                      Add New Item
+                    </Button>
+                  )}
+                  
+                  <Button
+                    mode="outlined"
+                    onPress={resetScanner}
+                    style={styles.scanAgainButton}
+                  >
+                    Scan Again
+                  </Button>
+                </View>
+              </Card.Content>
+            </Card>
           ) : (
-            renderScanResult()
+            <View style={styles.errorContainer}>
+              <MaterialCommunityIcons
+                name="alert-circle"
+                size={50}
+                color="#ef4444"
+              />
+              <Text style={styles.errorText}>Error scanning barcode</Text>
+              <Button
+                mode="contained"
+                onPress={resetScanner}
+                style={{ marginTop: 20 }}
+              >
+                Try Again
+              </Button>
+            </View>
           )}
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -411,96 +486,184 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#000',
   },
-  camera: {
+  scannerContainer: {
     flex: 1,
     width: '100%',
+    position: 'relative',
   },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'transparent',
+  scannerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scanArea: {
+  scannerHeader: {
+    position: 'absolute',
+    top: 20,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  scannerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  scannerSubtitle: {
+    fontSize: 16,
+    color: '#fff',
+    marginTop: 8,
+  },
+  scannerTargetRow: {
+    flexDirection: 'row',
     width: 250,
-    height: 250,
-    borderWidth: 2,
-    borderColor: '#3b82f6',
-    backgroundColor: 'transparent',
+    height: 30,
+  },
+  scannerTargetMiddle: {
+    flexDirection: 'row',
+    width: 250,
+    height: 190,
+  },
+  scannerTargetCorner: {
+    width: 30,
+    height: 30,
+    borderColor: '#fff',
+    borderTopWidth: 3,
+    borderLeftWidth: 3,
+  },
+  scannerTargetTopRight: {
+    borderLeftWidth: 0,
+    borderRightWidth: 3,
+  },
+  scannerTargetBottomLeft: {
+    borderTopWidth: 0,
+    borderBottomWidth: 3,
+  },
+  scannerTargetBottomRight: {
+    borderTopWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 3,
+    borderBottomWidth: 3,
+  },
+  scannerTargetSpacer: {
+    flex: 1,
+  },
+  scannerTargetSide: {
+    width: 30,
+  },
+  scannerTargetCenter: {
+    flex: 1,
+  },
+  controlsContainer: {
+    position: 'absolute',
+    bottom: 40,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
     justifyContent: 'center',
-    alignItems: 'center',
+    padding: 20,
   },
-  scanAreaCorner: {
-    position: 'absolute',
-    width: 20,
-    height: 20,
-    borderColor: '#3b82f6',
+  controlButton: {
+    margin: 10,
+    backgroundColor: 'rgba(0,0,0,0.3)',
   },
-  instructions: {
-    color: 'white',
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    padding: 10,
-    borderRadius: 10,
-  },
-  flashButton: {
-    position: 'absolute',
-    bottom: 20,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  text: {
-    fontSize: 16,
-    marginTop: 20,
-    color: '#333',
-    textAlign: 'center',
-  },
-  resultContainer: {
+  webCameraPlaceholder: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#000',
+    padding: 20,
+  },
+  webCameraText: {
+    color: '#fff',
+    fontSize: 16,
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  resultsContainer: {
+    flex: 1,
     width: '100%',
     backgroundColor: '#f5f5f5',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
   },
   loadingContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
+    marginTop: 20,
+    fontSize: 18,
+    color: '#4b5563',
   },
   resultCard: {
     width: '100%',
-    elevation: 4,
+    maxWidth: 500,
+    borderRadius: 10,
   },
-  resultContent: {
+  resultHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    marginBottom: 15,
   },
-  resultIcon: {
-    marginRight: 16,
+  resultHeaderText: {
+    marginLeft: 10,
   },
-  resultTextContainer: {
-    flex: 1,
+  resultType: {
+    fontSize: 14,
+    color: '#6b7280',
   },
-  resultTitle: {
+  resultNumber: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 4,
+    color: '#111827',
   },
-  resultSubtitle: {
+  resultDivider: {
+    marginBottom: 15,
+  },
+  resultTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 15,
+    color: '#111827',
+  },
+  detailText: {
     fontSize: 14,
-    color: '#666',
+    color: '#4b5563',
   },
-  resultActions: {
-    justifyContent: 'flex-end',
-    padding: 16,
-    paddingTop: 0,
+  actionButtonsContainer: {
+    marginTop: 20,
+  },
+  viewDetailsButton: {
+    marginBottom: 10,
+  },
+  scanAgainButton: {
+    marginTop: 10,
+  },
+  errorContainer: {
+    alignItems: 'center',
+  },
+  errorText: {
+    marginTop: 20,
+    fontSize: 18,
+    color: '#4b5563',
+  },
+  text: {
+    fontSize: 18,
+    marginTop: 20,
+    color: '#4b5563',
+    textAlign: 'center',
+  },
+  subText: {
+    fontSize: 14,
+    marginTop: 10,
+    color: '#6b7280',
+    textAlign: 'center',
+    paddingHorizontal: 40,
   },
 });
 

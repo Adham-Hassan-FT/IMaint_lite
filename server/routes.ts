@@ -259,11 +259,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/assets', authenticate, async (req, res) => {
     try {
-      const validatedData = insertAssetSchema.parse(req.body);
+      // Convert date strings to Date objects before validation
+      const requestData = { ...req.body };
+      if (requestData.purchaseDate && typeof requestData.purchaseDate === 'string') {
+        requestData.purchaseDate = new Date(requestData.purchaseDate);
+      }
+      if (requestData.installationDate && typeof requestData.installationDate === 'string') {
+        requestData.installationDate = new Date(requestData.installationDate);
+      }
+      if (requestData.warrantyExpirationDate && typeof requestData.warrantyExpirationDate === 'string') {
+        requestData.warrantyExpirationDate = new Date(requestData.warrantyExpirationDate);
+      }
+      if (requestData.lastMaintenanceDate && typeof requestData.lastMaintenanceDate === 'string') {
+        requestData.lastMaintenanceDate = new Date(requestData.lastMaintenanceDate);
+      }
+      if (requestData.nextMaintenanceDate && typeof requestData.nextMaintenanceDate === 'string') {
+        requestData.nextMaintenanceDate = new Date(requestData.nextMaintenanceDate);
+      }
+      
+      console.log('Processing asset data:', requestData);
+      const validatedData = insertAssetSchema.parse(requestData);
       const newAsset = await storage.createAsset(validatedData);
       res.status(201).json(newAsset);
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error('Validation error:', error.errors);
         return res.status(400).json({ message: 'Validation error', errors: error.errors });
       }
       console.error('Create asset error:', error);
@@ -511,11 +531,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/work-orders', authenticate, async (req, res) => {
     try {
-      const validatedData = insertWorkOrderSchema.parse(req.body);
+      // Convert date strings to Date objects before validation
+      const requestData = { ...req.body };
+      if (requestData.dateRequested && typeof requestData.dateRequested === 'string') {
+        requestData.dateRequested = new Date(requestData.dateRequested);
+      }
+      if (requestData.dateNeeded && typeof requestData.dateNeeded === 'string') {
+        requestData.dateNeeded = new Date(requestData.dateNeeded);
+      }
+      if (requestData.dateScheduled && typeof requestData.dateScheduled === 'string') {
+        requestData.dateScheduled = new Date(requestData.dateScheduled);
+      }
+      if (requestData.dateStarted && typeof requestData.dateStarted === 'string') {
+        requestData.dateStarted = new Date(requestData.dateStarted);
+      }
+      if (requestData.dateCompleted && typeof requestData.dateCompleted === 'string') {
+        requestData.dateCompleted = new Date(requestData.dateCompleted);
+      }
+      
+      // Handle assignedToId=0 (which means unassigned)
+      if (requestData.assignedToId === 0) {
+        delete requestData.assignedToId;
+      }
+      
+      console.log('Processing work order data:', requestData);
+      const validatedData = insertWorkOrderSchema.parse(requestData);
       const newWorkOrder = await storage.createWorkOrder(validatedData);
       res.status(201).json(newWorkOrder);
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error('Validation error:', error.errors);
         return res.status(400).json({ message: 'Validation error', errors: error.errors });
       }
       console.error('Create work order error:', error);
@@ -530,8 +575,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid work order ID' });
       }
       
+      // Convert date strings to Date objects before validation
+      const requestData = { ...req.body };
+      if (requestData.dateRequested && typeof requestData.dateRequested === 'string') {
+        requestData.dateRequested = new Date(requestData.dateRequested);
+      }
+      if (requestData.dateNeeded && typeof requestData.dateNeeded === 'string') {
+        requestData.dateNeeded = new Date(requestData.dateNeeded);
+      }
+      if (requestData.dateScheduled && typeof requestData.dateScheduled === 'string') {
+        requestData.dateScheduled = new Date(requestData.dateScheduled);
+      }
+      if (requestData.dateStarted && typeof requestData.dateStarted === 'string') {
+        requestData.dateStarted = new Date(requestData.dateStarted);
+      }
+      if (requestData.dateCompleted && typeof requestData.dateCompleted === 'string') {
+        requestData.dateCompleted = new Date(requestData.dateCompleted);
+      }
+      
+      // Handle assignedToId=0 (which means unassigned)
+      if (requestData.assignedToId === 0) {
+        delete requestData.assignedToId;
+      }
+      
+      console.log('Processing work order update data:', requestData);
+      
       // Validate only the fields that are present
-      const validatedData = insertWorkOrderSchema.partial().parse(req.body);
+      const validatedData = insertWorkOrderSchema.partial().parse(requestData);
       
       const updatedWorkOrder = await storage.updateWorkOrder(id, validatedData);
       
@@ -542,6 +612,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedWorkOrder);
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error('Validation error:', error.errors);
         return res.status(400).json({ message: 'Validation error', errors: error.errors });
       }
       console.error('Update work order error:', error);

@@ -1,127 +1,156 @@
-import React, { useEffect, useState } from 'react';
-import { View, ScrollView, StyleSheet, RefreshControl, TouchableOpacity, Alert } from 'react-native';
-import { Card, Text, Title, List, Divider, Button, Chip, ActivityIndicator, useTheme } from 'react-native-paper';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  Platform,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  Card,
+  Title,
+  Paragraph,
+  Badge,
+  Divider,
+  Button,
+  ActivityIndicator,
+  List,
+  Portal,
+  Dialog,
+  TextInput,
+  useTheme,
+  FAB,
+} from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { RouteProp, useNavigation, useRoute } from '@react-navigation/native';
-import { get, put } from '../lib/api';
-import { WorkOrderWithDetails } from '../../../shared/schema';
+import { useNavigation, useRoute } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { MainStackParamList } from '../navigation/MainNavigator';
+import axios from 'axios';
 
-type WorkOrderDetailParams = {
-  workOrderId: number;
+type WorkOrderScreenRouteProp = {
+  params: {
+    workOrderId: number;
+  };
 };
 
+type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
+
 const WorkOrderDetailScreen = () => {
-  const theme = useTheme();
-  const navigation = useNavigation();
-  const route = useRoute<RouteProp<{ params: WorkOrderDetailParams }, 'params'>>();
-  const { workOrderId } = route.params;
-  
-  const [workOrder, setWorkOrder] = useState<WorkOrderWithDetails | null>(null);
+  const [workOrder, setWorkOrder] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const [statusDialogVisible, setStatusDialogVisible] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [notesDialogVisible, setNotesDialogVisible] = useState(false);
+  const [notes, setNotes] = useState('');
   
-  const fetchWorkOrderDetails = async () => {
-    setLoading(true);
+  const theme = useTheme();
+  const route = useRoute<WorkOrderScreenRouteProp>();
+  const navigation = useNavigation<NavigationProp>();
+  
+  const { workOrderId } = route.params;
+
+  useEffect(() => {
+    fetchWorkOrder();
+  }, [workOrderId]);
+
+  const fetchWorkOrder = async () => {
     try {
-      const data = await get<WorkOrderWithDetails>(`/api/work-orders/${workOrderId}/details`);
-      setWorkOrder(data);
+      setLoading(true);
+      const response = await axios.get(`/api/work-orders/${workOrderId}/details`);
+      setWorkOrder(response.data);
+      setNotes(response.data.notes || '');
+      setSelectedStatus(response.data.status);
     } catch (error) {
-      console.error('Failed to fetch work order details:', error);
-      Alert.alert('Error', 'Failed to load work order details');
+      console.error('Error fetching work order:', error);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
-  
-  useEffect(() => {
-    fetchWorkOrderDetails();
-  }, [workOrderId]);
-  
-  const onRefresh = React.useCallback(() => {
-    setRefreshing(true);
-    fetchWorkOrderDetails();
-  }, [workOrderId]);
-  
-  // Helper function to get status color
-  const getStatusColor = (status: string) => {
+
+  const handleUpdateStatus = async () => {
+    try {
+      setLoading(true);
+      await axios.patch(`/api/work-orders/${workOrderId}`, {
+        status: selectedStatus,
+      });
+      
+      // Refresh work order details
+      await fetchWorkOrder();
+      setStatusDialogVisible(false);
+    } catch (error) {
+      console.error('Error updating work order status:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdateNotes = async () => {
+    try {
+      setLoading(true);
+      await axios.patch(`/api/work-orders/${workOrderId}`, {
+        notes,
+      });
+      
+      // Refresh work order details
+      await fetchWorkOrder();
+      setNotesDialogVisible(false);
+    } catch (error) {
+      console.error('Error updating work order notes:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
+  };
+
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'high':
+        return '#ef4444';
+      case 'medium':
+        return '#f59e0b';
+      case 'low':
+        return '#10b981';
+      default:
+        return '#6b7280';
+    }
+  };
+
+  const getStatusColor = (status) => {
     switch (status) {
-      case 'requested': return '#9ca3af';
-      case 'approved': return '#60a5fa';
-      case 'scheduled': return '#f59e0b';
-      case 'in_progress': return '#10b981';
-      case 'on_hold': return '#a855f7';
-      case 'completed': return '#22c55e';
-      case 'cancelled': return '#ef4444';
-      default: return '#9ca3af';
+      case 'requested':
+        return '#3b82f6';
+      case 'assigned':
+        return '#f59e0b';
+      case 'in-progress':
+        return '#8b5cf6';
+      case 'on-hold':
+        return '#6b7280';
+      case 'completed':
+        return '#10b981';
+      case 'cancelled':
+        return '#ef4444';
+      default:
+        return '#6b7280';
     }
   };
-  
-  // Helper to format status text
-  const formatStatus = (status: string) => {
-    return status.split('_').map(word => 
+
+  const formatStatus = (status) => {
+    if (!status) return '';
+    return status.split('-').map(word => 
       word.charAt(0).toUpperCase() + word.slice(1)
     ).join(' ');
   };
-  
-  // Helper to get priority icon
-  const getPriorityIcon = (priority: string) => {
-    switch (priority) {
-      case 'low': return 'arrow-down';
-      case 'medium': return 'arrow-right';
-      case 'high': return 'arrow-up';
-      case 'critical': return 'alert-circle';
-      default: return 'arrow-right';
-    }
-  };
-  
-  // Helper to get priority color
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'low': return '#10b981';
-      case 'medium': return '#f59e0b';
-      case 'high': return '#ef4444';
-      case 'critical': return '#7f1d1d';
-      default: return '#f59e0b';
-    }
-  };
-  
-  // Helper to format date
-  const formatDate = (dateString: string | null | undefined) => {
-    if (!dateString) return 'Not set';
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric'
-    });
-  };
-  
-  const updateWorkOrderStatus = async (newStatus: string) => {
-    if (!workOrder) return;
-    
-    try {
-      const response = await put<WorkOrderWithDetails>(`/api/work-orders/${workOrderId}`, {
-        status: newStatus
-      });
-      
-      setWorkOrder(response);
-      Alert.alert('Success', `Work order status updated to ${formatStatus(newStatus)}`);
-    } catch (error) {
-      console.error('Failed to update work order status:', error);
-      Alert.alert('Error', 'Failed to update work order status');
-    }
-  };
-  
-  const toggleSection = (section: string) => {
-    setExpandedSection(expandedSection === section ? null : section);
-  };
-  
-  if (loading && !refreshing) {
+
+  if (loading && !workOrder) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
-        <Text style={styles.loadingText}>Loading work order details...</Text>
       </View>
     );
   }
@@ -129,371 +158,243 @@ const WorkOrderDetailScreen = () => {
   if (!workOrder) {
     return (
       <View style={styles.errorContainer}>
-        <MaterialCommunityIcons name="alert-circle-outline" size={64} color="#ef4444" />
+        <MaterialCommunityIcons name="alert-circle" size={50} color="#ef4444" />
         <Text style={styles.errorText}>Work order not found</Text>
-        <Button 
-          mode="contained" 
-          onPress={() => navigation.goBack()}
-          style={{ marginTop: 16 }}
-        >
+        <Button mode="contained" onPress={() => navigation.goBack()}>
           Go Back
         </Button>
       </View>
     );
   }
-  
+
   return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      <Card style={styles.headerCard}>
-        <Card.Content>
-          <Text style={styles.workOrderNumber}>{workOrder.workOrderNumber}</Text>
-          <Title style={styles.title}>{workOrder.title}</Title>
-          
-          <View style={styles.statusRow}>
-            <Chip 
-              mode="flat"
-              style={[styles.statusChip, { backgroundColor: getStatusColor(workOrder.status) }]}
-              textStyle={{ color: 'white' }}
-            >
-              {formatStatus(workOrder.status)}
-            </Chip>
-            
-            <View style={styles.priorityContainer}>
-              <MaterialCommunityIcons 
-                name={getPriorityIcon(workOrder.priority)} 
-                size={18} 
-                color={getPriorityColor(workOrder.priority)} 
-              />
-              <Text style={[styles.priorityText, { color: getPriorityColor(workOrder.priority) }]}>
-                {workOrder.priority.charAt(0).toUpperCase() + workOrder.priority.slice(1)} Priority
-              </Text>
-            </View>
-          </View>
-        </Card.Content>
-      </Card>
-      
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.descriptionText}>
-            {workOrder.description || 'No description provided'}
-          </Text>
-        </Card.Content>
-      </Card>
-      
-      <Card style={styles.card}>
-        <Card.Content>
-          <Text style={styles.sectionTitle}>Details</Text>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Asset:</Text>
-            <Text style={styles.detailValue}>
-              {workOrder.asset ? `${workOrder.asset.assetNumber} - ${workOrder.asset.description}` : 'Not assigned'}
-            </Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Type:</Text>
-            <Text style={styles.detailValue}>
-              {workOrder.type?.name || 'Not specified'}
-            </Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Requested By:</Text>
-            <Text style={styles.detailValue}>
-              {workOrder.requestedBy?.fullName || 'Unknown'}
-            </Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Assigned To:</Text>
-            <Text style={styles.detailValue}>
-              {workOrder.assignedTo?.fullName || 'Unassigned'}
-            </Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Date Requested:</Text>
-            <Text style={styles.detailValue}>
-              {formatDate(workOrder.dateRequested)}
-            </Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Date Needed:</Text>
-            <Text style={styles.detailValue}>
-              {formatDate(workOrder.dateNeeded)}
-            </Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Date Scheduled:</Text>
-            <Text style={styles.detailValue}>
-              {formatDate(workOrder.dateScheduled)}
-            </Text>
-          </View>
-          
-          {workOrder.dateStarted && (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Date Started:</Text>
-              <Text style={styles.detailValue}>
-                {formatDate(workOrder.dateStarted)}
-              </Text>
-            </View>
-          )}
-          
-          {workOrder.dateCompleted && (
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Date Completed:</Text>
-              <Text style={styles.detailValue}>
-                {formatDate(workOrder.dateCompleted)}
-              </Text>
-            </View>
-          )}
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Estimated Hours:</Text>
-            <Text style={styles.detailValue}>
-              {workOrder.estimatedHours || 'Not estimated'}
-            </Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Actual Hours:</Text>
-            <Text style={styles.detailValue}>
-              {workOrder.actualHours || 'Not completed'}
-            </Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Estimated Cost:</Text>
-            <Text style={styles.detailValue}>
-              {workOrder.estimatedCost ? `$${workOrder.estimatedCost}` : 'Not estimated'}
-            </Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Actual Cost:</Text>
-            <Text style={styles.detailValue}>
-              {workOrder.actualCost ? `$${workOrder.actualCost}` : 'Not completed'}
-            </Text>
-          </View>
-        </Card.Content>
-      </Card>
-      
-      <List.Accordion
-        title="Labor Entries"
-        left={props => <List.Icon {...props} icon="account-wrench" />}
-        expanded={expandedSection === 'labor'}
-        onPress={() => toggleSection('labor')}
-        style={styles.listAccordion}
-      >
-        {workOrder.laborEntries && workOrder.laborEntries.length > 0 ? (
-          workOrder.laborEntries.map((labor) => (
-            <Card key={labor.id} style={styles.subCard}>
-              <Card.Content>
-                <View style={styles.laborHeader}>
-                  <Text style={styles.laborUser}>
-                    {labor.userId ? workOrder.laborEntries?.find(l => l.id === labor.id)?.user?.fullName || 'Unknown' : 'Unknown'}
-                  </Text>
-                  <Text style={styles.laborDate}>{formatDate(labor.datePerformed)}</Text>
-                </View>
-                <View style={styles.laborDetails}>
-                  <Text style={styles.laborHours}>{labor.hours} hours</Text>
-                  {labor.laborCost && (
-                    <Text style={styles.laborCost}>${labor.laborCost}</Text>
-                  )}
-                </View>
-                {labor.notes && (
-                  <Text style={styles.laborNotes}>{labor.notes}</Text>
-                )}
-              </Card.Content>
-            </Card>
-          ))
-        ) : (
-          <Card style={styles.emptySubCard}>
-            <Card.Content>
-              <Text style={styles.emptyText}>No labor entries recorded</Text>
-            </Card.Content>
-          </Card>
-        )}
-        
-        <Button 
-          mode="outlined" 
-          icon="plus"
-          onPress={() => navigation.navigate('AddLabor', { workOrderId: workOrder.id })}
-          style={styles.addButton}
-        >
-          Add Labor
-        </Button>
-      </List.Accordion>
-      
-      <List.Accordion
-        title="Parts Used"
-        left={props => <List.Icon {...props} icon="tools" />}
-        expanded={expandedSection === 'parts'}
-        onPress={() => toggleSection('parts')}
-        style={styles.listAccordion}
-      >
-        {workOrder.parts && workOrder.parts.length > 0 ? (
-          workOrder.parts.map((part) => (
-            <Card key={part.id} style={styles.subCard}>
-              <Card.Content>
-                <View style={styles.partHeader}>
-                  <Text style={styles.partName}>
-                    {part.inventoryItem?.partNumber} - {part.inventoryItem?.description}
-                  </Text>
-                  <Text style={styles.partDate}>{formatDate(part.dateIssued)}</Text>
-                </View>
-                <View style={styles.partDetails}>
-                  <Text style={styles.partQuantity}>Qty: {part.quantity}</Text>
-                  {part.unitCost && (
-                    <Text style={styles.partCost}>${part.unitCost} each</Text>
-                  )}
-                  {part.totalCost && (
-                    <Text style={styles.partTotalCost}>Total: ${part.totalCost}</Text>
-                  )}
-                </View>
-              </Card.Content>
-            </Card>
-          ))
-        ) : (
-          <Card style={styles.emptySubCard}>
-            <Card.Content>
-              <Text style={styles.emptyText}>No parts recorded</Text>
-            </Card.Content>
-          </Card>
-        )}
-        
-        <Button 
-          mode="outlined" 
-          icon="plus"
-          onPress={() => navigation.navigate('AddPart', { workOrderId: workOrder.id })}
-          style={styles.addButton}
-        >
-          Add Part
-        </Button>
-      </List.Accordion>
-      
-      {workOrder.completionNotes && (
-        <Card style={styles.card}>
+    <SafeAreaView style={styles.container}>
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollViewContent}>
+        <Card style={styles.headerCard}>
           <Card.Content>
-            <Text style={styles.sectionTitle}>Completion Notes</Text>
-            <Text style={styles.descriptionText}>{workOrder.completionNotes}</Text>
+            <View style={styles.workOrderHeader}>
+              <View style={styles.workOrderTitleContainer}>
+                <Text style={styles.workOrderNumber}>{workOrder.workOrderNumber}</Text>
+                <Text style={styles.workOrderTitle}>{workOrder.title}</Text>
+              </View>
+              
+              <View style={styles.workOrderBadges}>
+                <Badge 
+                  style={[
+                    styles.priorityBadge, 
+                    { backgroundColor: getPriorityColor(workOrder.priority) }
+                  ]}
+                >
+                  {workOrder.priority}
+                </Badge>
+                
+                <Badge 
+                  style={[
+                    styles.statusBadge, 
+                    { backgroundColor: getStatusColor(workOrder.status) }
+                  ]}
+                >
+                  {formatStatus(workOrder.status)}
+                </Badge>
+              </View>
+            </View>
+            
+            <Divider style={styles.divider} />
+            
+            <Text style={styles.sectionTitle}>Details</Text>
+            
+            <View style={styles.detailsContainer}>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Asset:</Text>
+                <Text style={styles.detailValue}>
+                  {workOrder.asset ? workOrder.asset.description : 'N/A'}
+                </Text>
+              </View>
+              
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Type:</Text>
+                <Text style={styles.detailValue}>
+                  {workOrder.type ? workOrder.type.name : 'N/A'}
+                </Text>
+              </View>
+              
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Requested:</Text>
+                <Text style={styles.detailValue}>
+                  {formatDate(workOrder.dateRequested)}
+                </Text>
+              </View>
+              
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Needed By:</Text>
+                <Text style={styles.detailValue}>
+                  {formatDate(workOrder.dateNeeded)}
+                </Text>
+              </View>
+              
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Requested By:</Text>
+                <Text style={styles.detailValue}>
+                  {workOrder.requestedBy ? workOrder.requestedBy.fullName : 'N/A'}
+                </Text>
+              </View>
+              
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Assigned To:</Text>
+                <Text style={styles.detailValue}>
+                  {workOrder.assignedTo ? workOrder.assignedTo.fullName : 'Unassigned'}
+                </Text>
+              </View>
+            </View>
           </Card.Content>
         </Card>
-      )}
-      
-      <Card style={styles.actionsCard}>
-        <Card.Content>
-          <Text style={styles.sectionTitle}>Actions</Text>
-          <View style={styles.statusActions}>
-            {workOrder.status === 'requested' && (
-              <>
-                <Button 
-                  mode="contained" 
-                  icon="check"
-                  onPress={() => updateWorkOrderStatus('approved')}
-                  style={[styles.actionButton, { backgroundColor: '#60a5fa' }]}
-                >
-                  Approve
-                </Button>
-                <Button 
-                  mode="contained" 
-                  icon="calendar"
-                  onPress={() => updateWorkOrderStatus('scheduled')}
-                  style={[styles.actionButton, { backgroundColor: '#f59e0b' }]}
-                >
-                  Schedule
-                </Button>
-              </>
-            )}
-            
-            {workOrder.status === 'approved' && (
+        
+        <Card style={styles.contentCard}>
+          <Card.Content>
+            <Text style={styles.sectionTitle}>Description</Text>
+            <Text style={styles.description}>{workOrder.description || 'No description provided.'}</Text>
+          </Card.Content>
+        </Card>
+        
+        <Card style={styles.contentCard}>
+          <Card.Content>
+            <View style={styles.notesHeader}>
+              <Text style={styles.sectionTitle}>Notes</Text>
               <Button 
-                mode="contained" 
-                icon="calendar"
-                onPress={() => updateWorkOrderStatus('scheduled')}
-                style={[styles.actionButton, { backgroundColor: '#f59e0b' }]}
+                mode="text" 
+                onPress={() => setNotesDialogVisible(true)}
+                labelStyle={styles.editButton}
               >
-                Schedule
+                Edit
               </Button>
-            )}
-            
-            {workOrder.status === 'scheduled' && (
-              <Button 
-                mode="contained" 
-                icon="play"
-                onPress={() => updateWorkOrderStatus('in_progress')}
-                style={[styles.actionButton, { backgroundColor: '#10b981' }]}
-              >
-                Start Work
-              </Button>
-            )}
-            
-            {workOrder.status === 'in_progress' && (
-              <>
-                <Button 
-                  mode="contained" 
-                  icon="check-circle"
-                  onPress={() => updateWorkOrderStatus('completed')}
-                  style={[styles.actionButton, { backgroundColor: '#22c55e' }]}
-                >
-                  Complete
-                </Button>
-                <Button 
-                  mode="contained" 
-                  icon="pause-circle"
-                  onPress={() => updateWorkOrderStatus('on_hold')}
-                  style={[styles.actionButton, { backgroundColor: '#a855f7' }]}
-                >
-                  On Hold
-                </Button>
-              </>
-            )}
-            
-            {workOrder.status === 'on_hold' && (
-              <Button 
-                mode="contained" 
-                icon="play-circle"
-                onPress={() => updateWorkOrderStatus('in_progress')}
-                style={[styles.actionButton, { backgroundColor: '#10b981' }]}
-              >
-                Resume
-              </Button>
-            )}
-            
-            {workOrder.status !== 'cancelled' && workOrder.status !== 'completed' && (
-              <Button 
-                mode="contained" 
-                icon="close-circle"
-                onPress={() => updateWorkOrderStatus('cancelled')}
-                style={[styles.actionButton, { backgroundColor: '#ef4444' }]}
-              >
-                Cancel
-              </Button>
+            </View>
+            <Text style={styles.notes}>{workOrder.notes || 'No notes added.'}</Text>
+          </Card.Content>
+        </Card>
+        
+        <Card style={styles.contentCard}>
+          <Card.Content>
+            <Text style={styles.sectionTitle}>Labor</Text>
+            {workOrder.laborEntries && workOrder.laborEntries.length > 0 ? (
+              workOrder.laborEntries.map((entry, index) => (
+                <View key={index} style={styles.laborEntry}>
+                  <View style={styles.laborHeader}>
+                    <Text style={styles.laborTechnician}>{entry.technician}</Text>
+                    <Text style={styles.laborHours}>{entry.hours} hours</Text>
+                  </View>
+                  <Text style={styles.laborDate}>{formatDate(entry.date)}</Text>
+                  {entry.notes && <Text style={styles.laborNotes}>{entry.notes}</Text>}
+                  {index < workOrder.laborEntries.length - 1 && <Divider style={styles.entryDivider} />}
+                </View>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No labor entries.</Text>
             )}
             
             <Button 
               mode="outlined" 
-              icon="pencil"
-              onPress={() => navigation.navigate('EditWorkOrder', { workOrderId: workOrder.id })}
-              style={styles.editButton}
+              icon="plus" 
+              onPress={() => {}}
+              style={styles.addButton}
             >
-              Edit
+              Add Labor
             </Button>
-          </View>
-        </Card.Content>
-      </Card>
+          </Card.Content>
+        </Card>
+        
+        <Card style={styles.contentCard}>
+          <Card.Content>
+            <Text style={styles.sectionTitle}>Parts</Text>
+            {workOrder.parts && workOrder.parts.length > 0 ? (
+              workOrder.parts.map((part, index) => (
+                <View key={index} style={styles.partEntry}>
+                  <View style={styles.partHeader}>
+                    <Text style={styles.partName}>
+                      {part.inventoryItem ? part.inventoryItem.description : 'Unknown Part'}
+                    </Text>
+                    <View style={styles.partQuantity}>
+                      <Text style={styles.partAmount}>{part.quantity}</Text>
+                      <Text style={styles.partUnit}>
+                        {part.inventoryItem ? part.inventoryItem.unit : 'units'}
+                      </Text>
+                    </View>
+                  </View>
+                  {index < workOrder.parts.length - 1 && <Divider style={styles.entryDivider} />}
+                </View>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No parts used.</Text>
+            )}
+            
+            <Button 
+              mode="outlined" 
+              icon="plus" 
+              onPress={() => {}}
+              style={styles.addButton}
+            >
+              Add Parts
+            </Button>
+          </Card.Content>
+        </Card>
+      </ScrollView>
       
-      <View style={styles.bottomPadding} />
-    </ScrollView>
+      <FAB
+        icon="square-edit-outline"
+        label="Update Status"
+        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
+        onPress={() => setStatusDialogVisible(true)}
+      />
+      
+      {/* Status Dialog */}
+      <Portal>
+        <Dialog visible={statusDialogVisible} onDismiss={() => setStatusDialogVisible(false)}>
+          <Dialog.Title>Update Status</Dialog.Title>
+          <Dialog.Content>
+            <List.Section>
+              {['requested', 'assigned', 'in-progress', 'on-hold', 'completed', 'cancelled'].map((status) => (
+                <List.Item
+                  key={status}
+                  title={formatStatus(status)}
+                  left={props => 
+                    <List.Icon
+                      {...props}
+                      icon={selectedStatus === status ? 'radiobox-marked' : 'radiobox-blank'}
+                      color={selectedStatus === status ? getStatusColor(status) : '#6b7280'}
+                    />
+                  }
+                  onPress={() => setSelectedStatus(status)}
+                />
+              ))}
+            </List.Section>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setStatusDialogVisible(false)}>Cancel</Button>
+            <Button onPress={handleUpdateStatus}>Update</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+      
+      {/* Notes Dialog */}
+      <Portal>
+        <Dialog visible={notesDialogVisible} onDismiss={() => setNotesDialogVisible(false)}>
+          <Dialog.Title>Update Notes</Dialog.Title>
+          <Dialog.Content>
+            <TextInput
+              mode="outlined"
+              multiline
+              numberOfLines={6}
+              value={notes}
+              onChangeText={setNotes}
+              style={styles.notesInput}
+            />
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setNotesDialogVisible(false)}>Cancel</Button>
+            <Button onPress={handleUpdateNotes}>Save</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+    </SafeAreaView>
   );
 };
 
@@ -502,13 +403,17 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  scrollView: {
+    flex: 1,
+  },
+  scrollViewContent: {
+    padding: 16,
+    paddingBottom: 80, // Space for FAB
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
   },
   errorContainer: {
     flex: 1,
@@ -517,177 +422,161 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   errorText: {
-    fontSize: 18,
-    marginTop: 16,
-    color: '#666',
-    textAlign: 'center',
+    fontSize: 16,
+    color: '#6b7280',
+    marginVertical: 20,
   },
   headerCard: {
-    margin: 16,
-    marginBottom: 8,
-    elevation: 2,
+    marginBottom: 16,
+    borderRadius: 10,
   },
-  card: {
-    margin: 16,
-    marginTop: 8,
-    marginBottom: 8,
-    elevation: 2,
+  contentCard: {
+    marginBottom: 16,
+    borderRadius: 10,
+  },
+  workOrderHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  workOrderTitleContainer: {
+    flex: 1,
   },
   workOrderNumber: {
     fontSize: 14,
-    color: '#666',
+    color: '#6b7280',
   },
-  title: {
+  workOrderTitle: {
     fontSize: 20,
-    marginVertical: 8,
+    fontWeight: 'bold',
+    marginTop: 4,
   },
-  statusRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
+  workOrderBadges: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
   },
-  statusChip: {
-    height: 28,
+  priorityBadge: {
+    marginBottom: 8,
+    textTransform: 'capitalize',
   },
-  priorityContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  statusBadge: {
+    alignSelf: 'flex-end',
   },
-  priorityText: {
-    marginLeft: 4,
-    fontWeight: '500',
+  divider: {
+    marginVertical: 16,
   },
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    marginBottom: 8,
-    color: '#333',
+    marginBottom: 12,
   },
-  descriptionText: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
+  detailsContainer: {
+    marginBottom: 8,
   },
   detailRow: {
     flexDirection: 'row',
     marginBottom: 8,
   },
   detailLabel: {
-    width: 120,
+    width: 100,
+    fontSize: 14,
+    color: '#6b7280',
     fontWeight: '500',
-    color: '#333',
   },
   detailValue: {
     flex: 1,
-    color: '#666',
+    fontSize: 14,
   },
-  listAccordion: {
-    backgroundColor: 'white',
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 8,
-    overflow: 'hidden',
-    elevation: 2,
+  description: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#4b5563',
   },
-  subCard: {
-    marginHorizontal: 16,
-    marginVertical: 4,
+  notesHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  emptySubCard: {
-    marginHorizontal: 16,
-    marginVertical: 8,
-    backgroundColor: '#f9f9f9',
+  notes: {
+    fontSize: 14,
+    lineHeight: 22,
+    color: '#4b5563',
   },
-  emptyText: {
-    color: '#888',
-    fontStyle: 'italic',
-    textAlign: 'center',
+  editButton: {
+    color: '#3b82f6',
   },
-  addButton: {
-    margin: 16,
+  laborEntry: {
+    marginBottom: 12,
   },
   laborHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    alignItems: 'center',
   },
-  laborUser: {
+  laborTechnician: {
+    fontSize: 14,
     fontWeight: '500',
-  },
-  laborDate: {
-    color: '#666',
-    fontSize: 12,
-  },
-  laborDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 4,
   },
   laborHours: {
     fontSize: 14,
+    fontWeight: '500',
   },
-  laborCost: {
-    fontSize: 14,
-    color: '#666',
+  laborDate: {
+    fontSize: 12,
+    color: '#6b7280',
+    marginBottom: 4,
   },
   laborNotes: {
-    marginTop: 4,
     fontSize: 12,
-    color: '#666',
+    color: '#4b5563',
     fontStyle: 'italic',
+  },
+  entryDivider: {
+    marginVertical: 12,
+  },
+  partEntry: {
+    marginBottom: 12,
   },
   partHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    alignItems: 'center',
   },
   partName: {
+    fontSize: 14,
     fontWeight: '500',
     flex: 1,
   },
-  partDate: {
-    color: '#666',
-    fontSize: 12,
-  },
-  partDetails: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 4,
-    flexWrap: 'wrap',
-  },
   partQuantity: {
-    fontSize: 14,
-    marginRight: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
-  partCost: {
-    fontSize: 14,
-    color: '#666',
-    marginRight: 8,
-  },
-  partTotalCost: {
+  partAmount: {
     fontSize: 14,
     fontWeight: '500',
+    marginRight: 4,
   },
-  actionsCard: {
+  partUnit: {
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    fontStyle: 'italic',
+    marginBottom: 12,
+  },
+  addButton: {
+    marginTop: 8,
+  },
+  fab: {
+    position: 'absolute',
     margin: 16,
-    marginTop: 8,
-    elevation: 2,
+    right: 0,
+    bottom: 0,
   },
-  statusActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 8,
-  },
-  actionButton: {
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  editButton: {
-    marginBottom: 8,
-  },
-  bottomPadding: {
-    height: 40,
+  notesInput: {
+    backgroundColor: '#fff',
   },
 });
 
