@@ -298,8 +298,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Invalid asset ID' });
       }
       
+      // Convert date strings to Date objects before validation
+      const requestData = { ...req.body };
+      if (requestData.purchaseDate && typeof requestData.purchaseDate === 'string') {
+        requestData.purchaseDate = new Date(requestData.purchaseDate);
+      }
+      if (requestData.installationDate && typeof requestData.installationDate === 'string') {
+        requestData.installationDate = new Date(requestData.installationDate);
+      }
+      if (requestData.warrantyExpirationDate && typeof requestData.warrantyExpirationDate === 'string') {
+        requestData.warrantyExpirationDate = new Date(requestData.warrantyExpirationDate);
+      }
+      if (requestData.lastMaintenanceDate && typeof requestData.lastMaintenanceDate === 'string') {
+        requestData.lastMaintenanceDate = new Date(requestData.lastMaintenanceDate);
+      }
+      if (requestData.nextMaintenanceDate && typeof requestData.nextMaintenanceDate === 'string') {
+        requestData.nextMaintenanceDate = new Date(requestData.nextMaintenanceDate);
+      }
+      
+      console.log('Processing asset update data:', requestData);
+      
       // Validate only the fields that are present
-      const validatedData = insertAssetSchema.partial().parse(req.body);
+      const validatedData = insertAssetSchema.partial().parse(requestData);
       
       const updatedAsset = await storage.updateAsset(id, validatedData);
       
@@ -310,6 +330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(updatedAsset);
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error('Validation error:', error.errors);
         return res.status(400).json({ message: 'Validation error', errors: error.errors });
       }
       console.error('Update asset error:', error);
