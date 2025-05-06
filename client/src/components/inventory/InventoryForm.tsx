@@ -136,8 +136,8 @@ export default function InventoryForm({ onClose, onSubmitSuccess }: InventoryFor
                   <FormItem>
                     <FormLabel>Category</FormLabel>
                     <Select 
-                      onValueChange={(value) => field.onChange(Number(value))} 
-                      value={field.value?.toString()}
+                      onValueChange={(value) => field.onChange(value === "none" ? null : Number(value))} 
+                      value={field.value?.toString() || "none"}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -145,6 +145,7 @@ export default function InventoryForm({ onClose, onSubmitSuccess }: InventoryFor
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
                         {isLoadingCategories ? (
                           <SelectItem value="loading" disabled>Loading...</SelectItem>
                         ) : (
