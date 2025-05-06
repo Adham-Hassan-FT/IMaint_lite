@@ -442,8 +442,8 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
                   <FormItem>
                     <FormLabel>Assigned To</FormLabel>
                     <Select 
-                      onValueChange={(value) => field.onChange(Number(value))} 
-                      value={field.value?.toString()}
+                      onValueChange={(value) => field.onChange(value === "none" ? null : Number(value))} 
+                      value={field.value?.toString() || "none"}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -451,7 +451,7 @@ export default function WorkOrderForm({ onClose, onSubmitSuccess }: WorkOrderFor
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="0">Not Assigned</SelectItem>
+                        <SelectItem value="none">Not Assigned</SelectItem>
                         {isLoadingUsers ? (
                           <SelectItem value="loading" disabled>Loading...</SelectItem>
                         ) : (
