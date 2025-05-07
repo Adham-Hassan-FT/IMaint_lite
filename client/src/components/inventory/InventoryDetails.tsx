@@ -195,7 +195,13 @@ export default function InventoryDetails({ item, onClose }: InventoryDetailsProp
               </div>
             </CardContent>
             <CardFooter>
-              <Button variant="secondary" className="ml-auto">Edit Item</Button>
+              <Button 
+                variant="secondary" 
+                className="ml-auto"
+                onClick={() => onClose(true)} // This will pass true to the parent to open edit mode
+              >
+                Edit Item
+              </Button>
             </CardFooter>
           </Card>
         </div>

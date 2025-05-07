@@ -237,7 +237,7 @@ export default function WorkOrderDetails({ workOrder, onClose }: WorkOrderDetail
                             <dt className="text-muted-foreground">Estimated Cost:</dt>
                             <dd>${typeof refreshedWorkOrder.estimatedCost === 'number' 
                                   ? refreshedWorkOrder.estimatedCost.toFixed(2) 
-                                  : parseFloat(refreshedWorkOrder.estimatedCost || '0').toFixed(2)}</dd>
+                                  : '0.00'}</dd>
                           </div>
                           <div className="flex justify-between">
                             <dt className="text-muted-foreground">Labor Cost:</dt>
