@@ -13,6 +13,7 @@ import Inventory from "@/pages/Inventory";
 import Resources from "@/pages/Resources";
 import Scanner from "@/pages/Scanner";
 import Maintenance from "@/pages/Maintenance";
+import Reports from "@/pages/Reports";
 import Login from "@/pages/Login";
 import { useEffect, useState } from "react";
 import { apiRequest } from "./lib/queryClient";
@@ -59,6 +60,7 @@ function Router() {
         <Route path="/resources" component={Resources} />
         <Route path="/scanner" component={Scanner} />
         <Route path="/maintenance" component={Maintenance} />
+        <Route path="/reports" component={Reports} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
