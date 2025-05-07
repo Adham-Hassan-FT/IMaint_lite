@@ -462,11 +462,25 @@ export default function PreventiveMaintenanceSchedule() {
               <div className="flex justify-between items-center">
                 <CardTitle>Maintenance Schedule</CardTitle>
                 <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      // We'll implement filtering in a future update
+                      alert("Filtering will be implemented in a future update");
+                    }}
+                  >
                     <Filter className="h-4 w-4 mr-2" />
                     Filter
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      // Refresh data by refetching the queries
+                      window.location.reload();
+                    }}
+                  >
                     <RotateCw className="h-4 w-4 mr-2" />
                     Refresh
                   </Button>
@@ -507,18 +521,40 @@ export default function PreventiveMaintenanceSchedule() {
                       </TableCell>
                       <TableCell>
                         {event.workOrderId ? (
-                          <Button variant="link" className="p-0 h-auto">
+                          <Button 
+                            variant="link" 
+                            className="p-0 h-auto"
+                            onClick={() => {
+                              // View work order
+                              alert(`Viewing work order: ${workOrders?.find(wo => wo.id === event.workOrderId)?.workOrderNumber}`);
+                            }}
+                          >
                             {workOrders?.find(wo => wo.id === event.workOrderId)?.workOrderNumber || 'View'}
                           </Button>
                         ) : (
-                          <Button variant="ghost" size="sm">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => {
+                              // Create work order
+                              alert(`Creating work order for maintenance: ${event.title}\nAsset: ${event.assetNumber}`);
+                            }}
+                          >
                             <Plus className="h-3 w-3 mr-1" />
                             Create
                           </Button>
                         )}
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-8 w-8 p-0"
+                          onClick={() => {
+                            // Show details for this event
+                            alert(`Details for maintenance: ${event.title}\nAsset: ${event.assetNumber}\nStatus: ${event.status}\nDate: ${formatEventDate(event.date)}`);
+                          }}
+                        >
                           <ChevronRight className="h-4 w-4" />
                         </Button>
                       </TableCell>
