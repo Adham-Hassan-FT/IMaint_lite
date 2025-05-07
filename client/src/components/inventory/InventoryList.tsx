@@ -90,7 +90,10 @@ export default function InventoryList() {
                 Manage parts and supplies
               </p>
             </div>
-            <Button onClick={() => setIsFormOpen(true)}>
+            <Button onClick={() => {
+              setItemToEdit(null);
+              setIsFormOpen(true);
+            }}>
               <Plus className="mr-2 h-4 w-4" /> New Item
             </Button>
           </div>
@@ -144,7 +147,9 @@ export default function InventoryList() {
                               <DropdownMenuItem onClick={() => handleViewDetails(item)}>
                                 View Details
                               </DropdownMenuItem>
-                              <DropdownMenuItem>Edit</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleEdit(item)}>
+                                Edit
+                              </DropdownMenuItem>
                               <DropdownMenuItem>Adjust Quantity</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -205,7 +210,10 @@ export default function InventoryList() {
                   <p className="text-muted-foreground mt-2">
                     Get started by creating a new inventory item.
                   </p>
-                  <Button className="mt-4" onClick={() => setIsFormOpen(true)}>
+                  <Button className="mt-4" onClick={() => {
+                    setItemToEdit(null);
+                    setIsFormOpen(true);
+                  }}>
                     <Plus className="mr-2 h-4 w-4" /> New Item
                   </Button>
                 </div>
@@ -215,8 +223,9 @@ export default function InventoryList() {
 
           {isFormOpen && (
             <InventoryForm 
-              onClose={() => setIsFormOpen(false)} 
-              onSubmitSuccess={() => setIsFormOpen(false)}
+              onClose={handleFormClose} 
+              onSubmitSuccess={handleFormClose}
+              editItem={itemToEdit}
             />
           )}
         </>
