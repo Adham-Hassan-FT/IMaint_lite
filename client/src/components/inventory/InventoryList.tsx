@@ -80,47 +80,51 @@ export default function InventoryList() {
         <InventoryDetails item={selectedItem} onClose={handleCloseDetails} />
       ) : (
         <>
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-4">
             <div>
-              <h2 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-                <Package className="h-6 w-6" />
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2">
+                <Package className="h-5 w-5 sm:h-6 sm:w-6" />
                 Inventory
               </h2>
-              <p className="text-muted-foreground">
+              <p className="text-sm sm:text-base text-muted-foreground">
                 Manage parts and supplies
               </p>
             </div>
-            <Button onClick={() => {
-              setItemToEdit(null);
-              setIsFormOpen(true);
-            }}>
-              <Plus className="mr-2 h-4 w-4" /> New Item
+            <Button 
+              onClick={() => {
+                setItemToEdit(null);
+                setIsFormOpen(true);
+              }}
+              size="sm"
+              className="self-start sm:self-auto"
+            >
+              <Plus className="mr-1 h-3.5 w-3.5 sm:mr-2 sm:h-4 sm:w-4" /> New Item
             </Button>
           </div>
 
           <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
-            <TabsList>
-              <TabsTrigger value="all">All Items</TabsTrigger>
-              <TabsTrigger value="low">Low Stock</TabsTrigger>
-              <TabsTrigger value="active">Active</TabsTrigger>
-              <TabsTrigger value="inactive">Inactive</TabsTrigger>
+            <TabsList className="grid grid-cols-2 md:flex w-full md:w-auto">
+              <TabsTrigger value="all" className="text-xs sm:text-sm">All Items</TabsTrigger>
+              <TabsTrigger value="low" className="text-xs sm:text-sm">Low Stock</TabsTrigger>
+              <TabsTrigger value="active" className="text-xs sm:text-sm">Active</TabsTrigger>
+              <TabsTrigger value="inactive" className="text-xs sm:text-sm">Inactive</TabsTrigger>
             </TabsList>
-            <TabsContent value={activeTab} className="mt-6">
+            <TabsContent value={activeTab} className="mt-4 sm:mt-6">
               {isLoading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
                   {[...Array(6)].map((_, i) => (
                     <Card key={i}>
-                      <CardHeader className="pb-2">
-                        <Skeleton className="h-5 w-3/4" />
-                        <Skeleton className="h-4 w-1/2" />
+                      <CardHeader className="pb-2 px-3 sm:px-6">
+                        <Skeleton className="h-4 sm:h-5 w-3/4" />
+                        <Skeleton className="h-3 sm:h-4 w-1/2" />
                       </CardHeader>
-                      <CardContent>
-                        <Skeleton className="h-4 w-full mb-2" />
-                        <Skeleton className="h-4 w-3/4 mb-2" />
-                        <Skeleton className="h-4 w-1/2" />
+                      <CardContent className="px-3 sm:px-6 py-2">
+                        <Skeleton className="h-3 sm:h-4 w-full mb-2" />
+                        <Skeleton className="h-3 sm:h-4 w-3/4 mb-2" />
+                        <Skeleton className="h-3 sm:h-4 w-1/2" />
                       </CardContent>
-                      <CardFooter>
-                        <Skeleton className="h-8 w-20" />
+                      <CardFooter className="px-3 sm:px-6 py-2">
+                        <Skeleton className="h-7 sm:h-8 w-full" />
                       </CardFooter>
                     </Card>
                   ))}
@@ -202,19 +206,23 @@ export default function InventoryList() {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-10">
-                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
-                    <Archive className="h-8 w-8 text-muted-foreground" />
+                <div className="text-center py-6 sm:py-10">
+                  <div className="inline-flex items-center justify-center w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-muted mb-3 sm:mb-4">
+                    <Archive className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
                   </div>
-                  <h3 className="text-lg font-medium">No inventory items found</h3>
-                  <p className="text-muted-foreground mt-2">
+                  <h3 className="text-base sm:text-lg font-medium">No inventory items found</h3>
+                  <p className="text-sm text-muted-foreground mt-1 sm:mt-2">
                     Get started by creating a new inventory item.
                   </p>
-                  <Button className="mt-4" onClick={() => {
-                    setItemToEdit(null);
-                    setIsFormOpen(true);
-                  }}>
-                    <Plus className="mr-2 h-4 w-4" /> New Item
+                  <Button 
+                    size="sm" 
+                    className="mt-3 sm:mt-4" 
+                    onClick={() => {
+                      setItemToEdit(null);
+                      setIsFormOpen(true);
+                    }}
+                  >
+                    <Plus className="mr-1 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" /> New Item
                   </Button>
                 </div>
               )}
