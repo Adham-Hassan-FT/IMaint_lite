@@ -13,7 +13,8 @@ import {
   insertWorkOrderLaborSchema, InsertWorkOrderLabor,
   insertWorkOrderPartSchema, InsertWorkOrderPart,
   insertWorkRequestSchema, InsertWorkRequest,
-  insertPreventiveMaintenanceSchema, InsertPreventiveMaintenance
+  insertPreventiveMaintenanceSchema, InsertPreventiveMaintenance,
+  insertNotificationSchema, InsertNotification
 } from "@shared/schema";
 import session from "express-session";
 import MemoryStore from "memorystore";
@@ -1151,6 +1152,171 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(workOrders);
     } catch (error) {
       console.error('Get work orders for PM error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  // Notifications routes
+  app.get('/api/notifications', authenticate, async (req, res) => {
+    try {
+      // User ID comes from the authenticated session
+      const userId = req.session.userId as number;
+      const notifications = await storage.listNotificationsForUser(userId);
+      res.json(notifications);
+    } catch (error) {
+      console.error('List notifications error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/notifications/count', authenticate, async (req, res) => {
+    try {
+      const userId = req.session.userId as number;
+      const count = await storage.countUnreadNotifications(userId);
+      res.json({ count });
+    } catch (error) {
+      console.error('Count notifications error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.get('/api/notifications/:id', authenticate, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid notification ID' });
+      }
+      
+      const notification = await storage.getNotification(id);
+      
+      if (!notification) {
+        return res.status(404).json({ message: 'Notification not found' });
+      }
+      
+      // Ensure the user can only access their own notifications
+      if (notification.userId !== req.session.userId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      res.json(notification);
+    } catch (error) {
+      console.error('Get notification error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/notifications', authenticate, async (req, res) => {
+    try {
+      // Only allow admin and manager roles to create notifications for other users
+      const currentUser = await storage.getUser(req.session.userId as number);
+      
+      if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'manager' && req.body.userId !== req.session.userId)) {
+        return res.status(403).json({ message: 'Not authorized to create notifications for other users' });
+      }
+      
+      const validatedData = insertNotificationSchema.parse(req.body);
+      const newNotification = await storage.createNotification(validatedData);
+      res.status(201).json(newNotification);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: 'Validation error', errors: error.errors });
+      }
+      console.error('Create notification error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.put('/api/notifications/:id/read', authenticate, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid notification ID' });
+      }
+      
+      const notification = await storage.getNotification(id);
+      
+      if (!notification) {
+        return res.status(404).json({ message: 'Notification not found' });
+      }
+      
+      // Ensure the user can only modify their own notifications
+      if (notification.userId !== req.session.userId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      const updatedNotification = await storage.markNotificationAsRead(id);
+      res.json(updatedNotification);
+    } catch (error) {
+      console.error('Mark notification as read error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.put('/api/notifications/:id/dismiss', authenticate, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid notification ID' });
+      }
+      
+      const notification = await storage.getNotification(id);
+      
+      if (!notification) {
+        return res.status(404).json({ message: 'Notification not found' });
+      }
+      
+      // Ensure the user can only modify their own notifications
+      if (notification.userId !== req.session.userId) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      const updatedNotification = await storage.markNotificationAsDismissed(id);
+      res.json(updatedNotification);
+    } catch (error) {
+      console.error('Mark notification as dismissed error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.put('/api/notifications/read-all', authenticate, async (req, res) => {
+    try {
+      const userId = req.session.userId as number;
+      await storage.markAllNotificationsAsRead(userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Mark all notifications as read error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.delete('/api/notifications/:id', authenticate, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ message: 'Invalid notification ID' });
+      }
+      
+      const notification = await storage.getNotification(id);
+      
+      if (!notification) {
+        return res.status(404).json({ message: 'Notification not found' });
+      }
+      
+      // Ensure the user can only delete their own notifications (except admins)
+      const currentUser = await storage.getUser(req.session.userId as number);
+      if (!currentUser || (currentUser.role !== 'admin' && notification.userId !== req.session.userId)) {
+        return res.status(403).json({ message: 'Access denied' });
+      }
+      
+      const success = await storage.deleteNotification(id);
+      
+      if (!success) {
+        return res.status(500).json({ message: 'Failed to delete notification' });
+      }
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Delete notification error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
   });

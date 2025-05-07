@@ -12,7 +12,8 @@ import {
   workRequests, WorkRequest, InsertWorkRequest, WorkRequestWithDetails,
   preventiveMaintenance, PreventiveMaintenance, InsertPreventiveMaintenance, PreventiveMaintenanceWithDetails,
   pmTechnicians, PmTechnician, InsertPmTechnician,
-  pmWorkOrders, PmWorkOrder, InsertPmWorkOrder
+  pmWorkOrders, PmWorkOrder, InsertPmWorkOrder,
+  notifications, Notification, InsertNotification
 } from "@shared/schema";
 import crypto from "crypto";
 
