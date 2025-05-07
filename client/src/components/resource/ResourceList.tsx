@@ -84,7 +84,7 @@ export default function ResourceList() {
             <Calendar className="mr-2 h-4 w-4" />
             Schedule
           </Button>
-          <Button>
+          <Button onClick={() => setShowResourceForm(true)}>
             Add Resource
           </Button>
         </div>
@@ -190,7 +190,7 @@ export default function ResourceList() {
           <p className="text-muted-foreground mt-2">
             Get started by adding technicians and staff members.
           </p>
-          <Button className="mt-4">
+          <Button className="mt-4" onClick={() => setShowResourceForm(true)}>
             Add Resource
           </Button>
         </div>
@@ -205,6 +205,13 @@ export default function ResourceList() {
           userName={selectedUser.name}
         />
       )}
+      
+      {/* Resource Form Dialog */}
+      <ResourceForm
+        isOpen={showResourceForm}
+        onClose={() => setShowResourceForm(false)}
+        onSubmitSuccess={() => setShowResourceForm(false)}
+      />
     </div>
   );
 }
