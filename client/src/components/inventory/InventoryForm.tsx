@@ -88,7 +88,7 @@ export default function InventoryForm({ onClose, onSubmitSuccess, editItem }: In
   // Update mutation for editing inventory item
   const updateInventoryItemMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      await apiRequest("PATCH", `/api/inventory-items/${editItem.id}`, data);
+      await apiRequest("PUT", `/api/inventory-items/${editItem.id}`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/inventory-items/details'] });
