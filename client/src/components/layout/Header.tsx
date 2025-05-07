@@ -15,8 +15,13 @@ import { useToast } from "@/hooks/use-toast";
 import { useNotifications } from "@/hooks/use-notifications";
 import { Badge } from "@/components/ui/badge";
 import { NotificationsDropdown } from "@/components/ui/notifications";
+import { ReactNode } from "react";
 
-export default function Header() {
+interface HeaderProps {
+  menuTrigger?: ReactNode;
+}
+
+export default function Header({ menuTrigger }: HeaderProps) {
   const { toast } = useToast();
   const { unreadCount } = useNotifications();
   
@@ -38,19 +43,20 @@ export default function Header() {
   };
 
   return (
-    <div className="border-b bg-white">
-      <div className="flex h-16 items-center px-4 justify-between">
-        <div>
-          <h1 className="text-xl font-semibold text-primary">IMaint Lite</h1>
+    <div className="border-b bg-white sticky top-0 z-10">
+      <div className="flex h-14 md:h-16 items-center px-2 sm:px-4 justify-between">
+        <div className="flex items-center">
+          {menuTrigger}
+          <h1 className="text-base sm:text-lg md:text-xl font-semibold text-primary truncate">IMaint Lite</h1>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-1 sm:gap-4">
           <NotificationsDropdown>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="relative h-9 w-9 sm:h-10 sm:w-10">
+              <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
               {unreadCount > 0 && (
                 <Badge 
                   variant="destructive" 
-                  className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs"
+                  className="absolute -top-1 -right-1 h-4 w-4 sm:h-5 sm:w-5 flex items-center justify-center p-0 text-[10px] sm:text-xs"
                 >
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </Badge>
@@ -60,26 +66,26 @@ export default function Header() {
           
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="relative h-10 w-10 rounded-full">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
-                  <User className="h-5 w-5" />
+              <Button variant="ghost" className="relative h-8 w-8 sm:h-10 sm:w-10 rounded-full">
+                <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-muted">
+                  <User className="h-4 w-4 sm:h-5 sm:w-5" />
                 </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuContent align="end" className="w-48 sm:w-56">
+              <DropdownMenuLabel className="text-xs sm:text-sm">My Account</DropdownMenuLabel>
               {isLoading ? (
                 <DropdownMenuItem disabled>Loading...</DropdownMenuItem>
               ) : (
                 <>
-                  <DropdownMenuLabel>{currentUser?.fullName}</DropdownMenuLabel>
+                  <DropdownMenuLabel className="text-sm sm:text-base font-medium">{currentUser?.fullName}</DropdownMenuLabel>
                   <DropdownMenuLabel className="text-xs text-muted-foreground">
                     {currentUser?.role}
                   </DropdownMenuLabel>
                 </>
               )}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout}>
+              <DropdownMenuItem onClick={handleLogout} className="text-sm">
                 Log out
               </DropdownMenuItem>
             </DropdownMenuContent>

@@ -126,18 +126,18 @@ export default function InventoryList() {
                   ))}
                 </div>
               ) : filteredItems && filteredItems.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
                   {filteredItems.map((item) => (
                     <Card key={item.id} className="hover:shadow-md transition-all">
-                      <CardHeader className="pb-2">
+                      <CardHeader className="pb-2 px-3 sm:px-6">
                         <div className="flex justify-between items-start">
                           <div>
-                            <CardTitle className="text-lg">{item.partNumber}</CardTitle>
-                            <CardDescription>{item.name}</CardDescription>
+                            <CardTitle className="text-base sm:text-lg">{item.partNumber}</CardTitle>
+                            <CardDescription className="text-sm line-clamp-1">{item.name}</CardDescription>
                           </div>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" className="h-8 w-8 p-0">
+                              <Button variant="ghost" className="h-7 w-7 p-0 sm:h-8 sm:w-8">
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
@@ -155,13 +155,13 @@ export default function InventoryList() {
                           </DropdownMenu>
                         </div>
                       </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
+                      <CardContent className="px-3 sm:px-6 py-2">
+                        <div className="space-y-1 sm:space-y-2">
+                          <div className="flex justify-between text-xs sm:text-sm">
                             <span className="text-muted-foreground">Category:</span>
-                            <span>{item.category?.name || 'N/A'}</span>
+                            <span className="truncate max-w-[120px] text-right">{item.category?.name || 'N/A'}</span>
                           </div>
-                          <div className="flex justify-between text-sm">
+                          <div className="flex justify-between text-xs sm:text-sm">
                             <span className="text-muted-foreground">In Stock:</span>
                             <span className={`font-medium ${
                               item.quantityInStock <= (item.reorderPoint || 0) 
@@ -171,30 +171,30 @@ export default function InventoryList() {
                               {item.quantityInStock || 0}
                             </span>
                           </div>
-                          <div className="flex justify-between text-sm">
+                          <div className="flex justify-between text-xs sm:text-sm">
                             <span className="text-muted-foreground">Unit Cost:</span>
                             <span>${item.unitCost?.toFixed(2) || '0.00'}</span>
                           </div>
-                          <div className="flex justify-between text-sm">
+                          <div className="flex justify-between text-xs sm:text-sm">
                             <span className="text-muted-foreground">Location:</span>
-                            <span>{item.location || 'N/A'}</span>
+                            <span className="truncate max-w-[120px] text-right">{item.location || 'N/A'}</span>
                           </div>
-                          <div className="flex gap-2 mt-3">
+                          <div className="flex flex-wrap gap-1 mt-2">
                             {!item.isActive && (
-                              <Badge variant="outline" className="bg-gray-100">
+                              <Badge variant="outline" className="bg-gray-100 text-xs">
                                 Inactive
                               </Badge>
                             )}
                             {item.quantityInStock <= (item.reorderPoint || 0) && (
-                              <Badge className="bg-red-100 text-red-800">
+                              <Badge className="bg-red-100 text-red-800 text-xs">
                                 Low Stock
                               </Badge>
                             )}
                           </div>
                         </div>
                       </CardContent>
-                      <CardFooter>
-                        <Button variant="outline" className="w-full" onClick={() => handleViewDetails(item)}>
+                      <CardFooter className="px-3 sm:px-6 py-2">
+                        <Button variant="outline" size="sm" className="w-full text-xs sm:text-sm h-8" onClick={() => handleViewDetails(item)}>
                           View Details
                         </Button>
                       </CardFooter>

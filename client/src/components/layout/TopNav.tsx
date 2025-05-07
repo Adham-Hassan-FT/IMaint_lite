@@ -1,5 +1,10 @@
 import Header from "./Header";
+import { ReactNode } from "react";
 
-export default function TopNav() {
-  return <Header />;
+interface TopNavProps {
+  children?: ReactNode;
+}
+
+export default function TopNav({ children }: TopNavProps) {
+  return <Header menuTrigger={children} />;
 }
