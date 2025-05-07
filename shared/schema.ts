@@ -27,6 +27,15 @@ export const recurringPeriodEnum = pgEnum('recurring_period', [
   'daily', 'weekly', 'biweekly', 'monthly', 'quarterly', 'semiannually', 'annually'
 ]);
 
+export const notificationTypeEnum = pgEnum('notification_type', [
+  'work_order_assigned', 'work_order_due', 'work_request_created', 
+  'work_request_converted', 'pm_due', 'inventory_low', 'system'
+]);
+
+export const notificationStatusEnum = pgEnum('notification_status', [
+  'unread', 'read', 'dismissed'
+]);
+
 // Users
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
@@ -282,4 +291,28 @@ export type PreventiveMaintenanceWithDetails = PreventiveMaintenance & {
   createdBy?: User;
   technicians?: User[];
   generatedWorkOrders?: (PmWorkOrder & { workOrder: WorkOrder })[];
+};
+
+// Notifications
+export const notifications = pgTable("notifications", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  type: notificationTypeEnum("type").notNull(),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  status: notificationStatusEnum("status").notNull().default('unread'),
+  relatedItemId: integer("related_item_id"), // Can be work order ID, work request ID, etc.
+  relatedItemType: text("related_item_type"), // 'work_order', 'work_request', 'pm', 'inventory', etc.
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  readAt: timestamp("read_at"),
+  dismissedAt: timestamp("dismissed_at"),
+  reminderDate: timestamp("reminder_date"), // For reminders that need to show up at a specific time
+});
+
+export const insertNotificationSchema = createInsertSchema(notifications).omit({ id: true });
+export type InsertNotification = z.infer<typeof insertNotificationSchema>;
+export type Notification = typeof notifications.$inferSelect;
+
+export type NotificationWithDetails = Notification & {
+  user?: User;
 };
