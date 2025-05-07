@@ -20,6 +20,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { 
   ArrowLeft, 
   Drill, 
@@ -29,11 +37,15 @@ import {
   Hash, 
   ClipboardList,
   Factory,
-  FileText
+  FileText,
+  Upload
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import AssetForm from "./AssetForm";
+import WorkOrderFormModal from "../workorder/WorkOrderFormModal";
+import DocumentUploadModal from "../document/DocumentUploadModal";
 
 const statusColors: Record<string, string> = {
   operational: "bg-green-100 text-green-800",
@@ -50,6 +62,9 @@ interface AssetDetailsProps {
 export default function AssetDetails({ asset, onClose }: AssetDetailsProps) {
   const { toast } = useToast();
   const [status, setStatus] = useState(asset.status);
+  const [isEditFormOpen, setIsEditFormOpen] = useState(false);
+  const [isWorkOrderFormOpen, setIsWorkOrderFormOpen] = useState(false);
+  const [isDocumentUploadOpen, setIsDocumentUploadOpen] = useState(false);
 
   // Get fresh data for the asset
   const { data: refreshedAsset, isLoading } = useQuery<AssetWithDetails>({
@@ -239,7 +254,13 @@ export default function AssetDetails({ asset, onClose }: AssetDetailsProps) {
               </div>
             </CardContent>
             <CardFooter>
-              <Button variant="secondary" className="ml-auto">Edit Asset</Button>
+              <Button 
+                variant="secondary" 
+                className="ml-auto"
+                onClick={() => setIsEditFormOpen(true)}
+              >
+                Edit Asset
+              </Button>
             </CardFooter>
           </Card>
         </div>
@@ -282,14 +303,26 @@ export default function AssetDetails({ asset, onClose }: AssetDetailsProps) {
                   ) : (
                     <div className="text-center py-6">
                       <p className="text-sm text-muted-foreground">No work orders found for this asset</p>
-                      <Button className="mt-2" variant="outline">Create Work Order</Button>
+                      <Button 
+                        className="mt-2" 
+                        variant="outline"
+                        onClick={() => setIsWorkOrderFormOpen(true)}
+                      >
+                        Create Work Order
+                      </Button>
                     </div>
                   )}
                 </TabsContent>
                 <TabsContent value="documents" className="pt-4">
                   <div className="text-center py-6">
                     <p className="text-sm text-muted-foreground">No documents attached to this asset</p>
-                    <Button className="mt-2" variant="outline">Upload Document</Button>
+                    <Button 
+                      className="mt-2" 
+                      variant="outline"
+                      onClick={() => setIsDocumentUploadOpen(true)}
+                    >
+                      Upload Document
+                    </Button>
                   </div>
                 </TabsContent>
               </Tabs>
