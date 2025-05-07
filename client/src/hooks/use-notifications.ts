@@ -1,88 +1,94 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { queryClient, apiRequest } from '@/lib/queryClient';
-import { Notification } from '@shared/schema';
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Notification } from "@shared/schema";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 export function useNotifications() {
-  // Get unread notification count
-  const { 
-    data: unreadCount = 0, 
-    isLoading: isLoadingCount,
-    refetch: refetchCount
-  } = useQuery({
-    queryKey: ['/api/notifications/count'],
-    select: (data) => data?.count || 0,
-  });
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
-  // Get all notifications
-  const {
-    data: notifications = [],
-    isLoading: isLoadingNotifications,
-    refetch: refetchNotifications
+  // Fetch user notifications
+  const { 
+    data: notifications = [], 
+    isLoading, 
+    error 
   } = useQuery<Notification[]>({
     queryKey: ['/api/notifications'],
   });
 
-  // Mark a notification as read
-  const markAsRead = useMutation({
-    mutationFn: async (notificationId: number) => {
-      const res = await apiRequest('PUT', `/api/notifications/${notificationId}/read`);
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications/count'] });
-    }
+  // Fetch unread count
+  const { 
+    data: unreadCount = 0, 
+    isLoading: isLoadingCount 
+  } = useQuery<number>({
+    queryKey: ['/api/notifications/unread-count'],
   });
 
-  // Mark a notification as dismissed
-  const markAsDismissed = useMutation({
-    mutationFn: async (notificationId: number) => {
-      const res = await apiRequest('PUT', `/api/notifications/${notificationId}/dismiss`);
-      return res.json();
+  // Mark notification as read
+  const { mutate: markAsRead } = useMutation({
+    mutationFn: async (id: number) => {
+      return await apiRequest("PATCH", `/api/notifications/${id}/read`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications/count'] });
-    }
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Failed to mark notification as read",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+      });
+    },
+  });
+
+  // Mark notification as dismissed
+  const { mutate: markAsDismissed } = useMutation({
+    mutationFn: async (id: number) => {
+      return await apiRequest("PATCH", `/api/notifications/${id}/dismiss`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Failed to dismiss notification",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+      });
+    },
   });
 
   // Mark all notifications as read
-  const markAllAsRead = useMutation({
+  const { mutate: markAllAsRead } = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest('PUT', '/api/notifications/read-all');
-      return res.json();
+      return await apiRequest("POST", `/api/notifications/mark-all-read`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications/count'] });
-    }
-  });
-
-  // Delete a notification
-  const deleteNotification = useMutation({
-    mutationFn: async (notificationId: number) => {
-      const res = await apiRequest('DELETE', `/api/notifications/${notificationId}`);
-      return res.json();
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications/unread-count'] });
+      toast({
+        title: "All notifications marked as read",
+      });
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications/count'] });
-    }
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Failed to mark all notifications as read",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+      });
+    },
   });
-
-  const refetchAll = () => {
-    refetchCount();
-    refetchNotifications();
-  };
 
   return {
     notifications,
     unreadCount,
-    isLoading: isLoadingNotifications || isLoadingCount,
+    isLoading,
+    isLoadingCount,
+    error,
     markAsRead,
     markAsDismissed,
     markAllAsRead,
-    deleteNotification,
-    refetchAll
   };
 }
