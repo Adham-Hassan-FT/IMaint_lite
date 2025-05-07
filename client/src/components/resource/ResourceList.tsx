@@ -23,10 +23,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle, MoreVertical, Users, Calendar, ClipboardList } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import WorkOrderAssignment from "./WorkOrderAssignment";
+import ResourceForm from "./ResourceForm";
 
 export default function ResourceList() {
   const [selectedUser, setSelectedUser] = useState<{ id: number; name: string } | null>(null);
   const [showAssignmentDialog, setShowAssignmentDialog] = useState(false);
+  const [showResourceForm, setShowResourceForm] = useState(false);
   
   const { data: users, isLoading, isError } = useQuery<User[]>({
     queryKey: ['/api/users'],
