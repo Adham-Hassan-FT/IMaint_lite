@@ -50,11 +50,13 @@ type FormValues = z.infer<typeof formSchema>;
 interface InventoryFormProps {
   onClose: () => void;
   onSubmitSuccess: () => void;
+  editItem?: any; // The item to edit, if provided
 }
 
-export default function InventoryForm({ onClose, onSubmitSuccess }: InventoryFormProps) {
+export default function InventoryForm({ onClose, onSubmitSuccess, editItem }: InventoryFormProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isEditing = !!editItem;
   
   // Get inventory categories
   const { data: categories, isLoading: isLoadingCategories } = useQuery({
@@ -82,22 +84,56 @@ export default function InventoryForm({ onClose, onSubmitSuccess }: InventoryFor
       });
     },
   });
+  
+  // Update mutation for editing inventory item
+  const updateInventoryItemMutation = useMutation({
+    mutationFn: async (data: FormValues) => {
+      await apiRequest("PATCH", `/api/inventory-items/${editItem.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/inventory-items/details'] });
+      toast({
+        title: "Inventory Item Updated",
+        description: "The inventory item was updated successfully",
+      });
+      onSubmitSuccess();
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Failed to update inventory item",
+        description: error.message || "An unexpected error occurred",
+      });
+    },
+  });
+
+  // Set default values based on whether we're editing or creating
+  const defaultValues = {
+    partNumber: editItem?.partNumber || "",
+    name: editItem?.name || "",
+    description: editItem?.description || "",
+    quantityInStock: editItem?.quantityInStock?.toString() || "0",
+    isActive: editItem?.isActive !== undefined ? editItem.isActive : true,
+    categoryId: editItem?.categoryId || null,
+    unitCost: editItem?.unitCost?.toString() || "",
+    reorderPoint: editItem?.reorderPoint?.toString() || "",
+    location: editItem?.location || "",
+    barcode: editItem?.barcode || "",
+  };
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      partNumber: "",
-      name: "",
-      description: "",
-      quantityInStock: "0",
-      isActive: true,
-    },
+    defaultValues,
   });
 
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true);
     try {
-      await createInventoryItemMutation.mutateAsync(data);
+      if (isEditing) {
+        await updateInventoryItemMutation.mutateAsync(data);
+      } else {
+        await createInventoryItemMutation.mutateAsync(data);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -107,9 +143,9 @@ export default function InventoryForm({ onClose, onSubmitSuccess }: InventoryFor
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Inventory Item</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Inventory Item' : 'Create New Inventory Item'}</DialogTitle>
           <DialogDescription>
-            Enter the details for the new inventory item
+            {isEditing ? 'Update the details for this inventory item' : 'Enter the details for the new inventory item'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -291,7 +327,9 @@ export default function InventoryForm({ onClose, onSubmitSuccess }: InventoryFor
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Item"}
+                {isSubmitting 
+                  ? (isEditing ? "Updating..." : "Creating...") 
+                  : (isEditing ? "Update Item" : "Create Item")}
               </Button>
             </DialogFooter>
           </form>

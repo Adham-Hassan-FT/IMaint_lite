@@ -235,7 +235,9 @@ export default function WorkOrderDetails({ workOrder, onClose }: WorkOrderDetail
                         <dl className="space-y-2 text-sm">
                           <div className="flex justify-between">
                             <dt className="text-muted-foreground">Estimated Cost:</dt>
-                            <dd>${refreshedWorkOrder.estimatedCost?.toFixed(2) || '0.00'}</dd>
+                            <dd>${typeof refreshedWorkOrder.estimatedCost === 'number' 
+                                  ? refreshedWorkOrder.estimatedCost.toFixed(2) 
+                                  : parseFloat(refreshedWorkOrder.estimatedCost || '0').toFixed(2)}</dd>
                           </div>
                           <div className="flex justify-between">
                             <dt className="text-muted-foreground">Labor Cost:</dt>

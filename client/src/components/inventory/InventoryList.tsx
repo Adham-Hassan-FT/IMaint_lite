@@ -29,6 +29,7 @@ import InventoryDetails from "./InventoryDetails";
 export default function InventoryList() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItemWithDetails | null>(null);
+  const [itemToEdit, setItemToEdit] = useState<InventoryItemWithDetails | null>(null);
   const [activeTab, setActiveTab] = useState("all");
 
   const { data: inventoryItems, isLoading, isError } = useQuery<InventoryItemWithDetails[]>({
@@ -49,6 +50,16 @@ export default function InventoryList() {
 
   const handleCloseDetails = () => {
     setSelectedItem(null);
+  };
+  
+  const handleEdit = (item: InventoryItemWithDetails) => {
+    setItemToEdit(item);
+    setIsFormOpen(true);
+  };
+  
+  const handleFormClose = () => {
+    setIsFormOpen(false);
+    setItemToEdit(null);
   };
 
   if (isError) {
