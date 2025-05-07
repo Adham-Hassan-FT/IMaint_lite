@@ -11,7 +11,9 @@ import {
   Barcode,
   LogOut,
   CalendarDays,
-  MessageSquare
+  MessageSquare,
+  BarChart,
+  FileText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -78,6 +80,11 @@ export default function Sidebar({ className }: SidebarProps) {
       title: "Resources",
       icon: <Users className="mr-2 h-4 w-4" />,
       path: "/resources"
+    },
+    {
+      title: "Reports",
+      icon: <BarChart className="mr-2 h-4 w-4" />,
+      path: "/reports"
     },
     {
       title: "Barcode Scanner",
