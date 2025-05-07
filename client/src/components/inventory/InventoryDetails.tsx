@@ -31,7 +31,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface InventoryDetailsProps {
   item: InventoryItemWithDetails;
-  onClose: () => void;
+  onClose: (openEditMode?: boolean) => void;
 }
 
 export default function InventoryDetails({ item, onClose }: InventoryDetailsProps) {
@@ -111,7 +111,7 @@ export default function InventoryDetails({ item, onClose }: InventoryDetailsProp
   return (
     <div className="space-y-4">
       <div className="flex items-center mb-4">
-        <Button variant="ghost" onClick={onClose} className="mr-2">
+        <Button variant="ghost" onClick={() => onClose()} className="mr-2">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back
         </Button>

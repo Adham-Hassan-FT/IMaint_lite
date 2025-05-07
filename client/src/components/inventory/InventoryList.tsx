@@ -48,8 +48,12 @@ export default function InventoryList() {
     setSelectedItem(item);
   };
 
-  const handleCloseDetails = () => {
+  const handleCloseDetails = (openEditMode?: boolean) => {
     setSelectedItem(null);
+    
+    if (openEditMode && selectedItem) {
+      handleEdit(selectedItem);
+    }
   };
   
   const handleEdit = (item: InventoryItemWithDetails) => {

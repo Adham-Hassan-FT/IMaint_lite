@@ -78,7 +78,7 @@ export default function ResourceForm({ isOpen, onClose, onSubmitSuccess }: Resou
     mutationFn: async (data: FormValues) => {
       // Remove the confirmPassword field before sending to API
       const { confirmPassword, ...userData } = data;
-      return apiRequest("/api/users", "POST", userData);
+      return apiRequest("POST", "/api/users", userData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/users'] });
