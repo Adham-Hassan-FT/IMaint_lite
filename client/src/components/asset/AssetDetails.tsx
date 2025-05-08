@@ -328,7 +328,12 @@ export default function AssetDetails({ asset, onClose }: AssetDetailsProps) {
               </Tabs>
             </CardContent>
             <CardFooter className="flex justify-between">
-              <Button variant="outline" size="sm" className="w-full">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="w-full"
+                onClick={() => setIsWorkOrderFormOpen(true)}
+              >
                 <ClipboardList className="mr-2 h-4 w-4" />
                 Create Work Order
               </Button>

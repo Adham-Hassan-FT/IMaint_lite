@@ -1,7 +1,9 @@
 import axios from 'axios';
 
 // Base URL for API - update for production
-const API_URL = 'http://localhost:5000';
+const API_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://your-production-url.com' 
+  : 'http://localhost:5000';
 
 // Create axios instance with default config
 export const api = axios.create({
