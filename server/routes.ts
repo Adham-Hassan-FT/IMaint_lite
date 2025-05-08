@@ -1015,6 +1015,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (requestData.dateCreated && typeof requestData.dateCreated === 'string') {
         requestData.dateCreated = new Date(requestData.dateCreated);
       }
+      // Convert duration number to string for Zod decimal parsing
+      if (requestData.duration && typeof requestData.duration === 'number') {
+        requestData.duration = requestData.duration.toString();
+      }
       
       // Set created by ID to current user if not specified
       if (!requestData.createdById && req.session.userId) {
@@ -1055,6 +1059,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const requestData = { ...req.body };
       if (requestData.startDate && typeof requestData.startDate === 'string') {
         requestData.startDate = new Date(requestData.startDate);
+      }
+      // Convert duration number to string for Zod decimal parsing
+      if (requestData.duration && typeof requestData.duration === 'number') {
+        requestData.duration = requestData.duration.toString();
       }
       
       const validatedData = insertPreventiveMaintenanceSchema.partial().parse(requestData);
