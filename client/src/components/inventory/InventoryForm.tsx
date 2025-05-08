@@ -40,7 +40,7 @@ const formSchema = insertInventoryItemSchema.extend({
   partNumber: z.string().min(2, "Part number must be at least 2 characters"),
   name: z.string().min(2, "Name must be at least 2 characters"),
   description: z.string().optional(),
-  unitCost: z.string().optional().transform(val => val ? parseFloat(val) : undefined),
+  unitCost: z.string().optional(),
   quantityInStock: z.string().transform(val => parseInt(val) || 0),
   reorderPoint: z.string().optional().transform(val => val ? parseInt(val) : undefined),
 });
@@ -59,7 +59,7 @@ export default function InventoryForm({ onClose, onSubmitSuccess, editItem }: In
   const isEditing = !!editItem;
   
   // Get inventory categories
-  const { data: categories, isLoading: isLoadingCategories } = useQuery({
+  const { data: categories = [], isLoading: isLoadingCategories } = useQuery<any[]>({
     queryKey: ['/api/inventory-categories'],
   });
 
@@ -235,7 +235,13 @@ export default function InventoryForm({ onClose, onSubmitSuccess, editItem }: In
                   <FormItem>
                     <FormLabel>Unit Cost</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                      <Input 
+                        type="number" 
+                        step="0.01" 
+                        placeholder="0.00" 
+                        {...field} 
+                        onChange={(e) => field.onChange(e.target.value)}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -365,6 +365,51 @@ export default function AssetDetails({ asset, onClose }: AssetDetailsProps) {
           </Card>
         </div>
       </div>
+
+      {isEditFormOpen && (
+        <AssetForm 
+          onClose={() => setIsEditFormOpen(false)} 
+          onSubmitSuccess={() => {
+            setIsEditFormOpen(false);
+            queryClient.invalidateQueries({ queryKey: [`/api/assets/${asset.id}/details`] });
+            toast({
+              title: "Asset Updated",
+              description: "The asset has been updated successfully"
+            });
+          }}
+          editAsset={refreshedAsset}
+        />
+      )}
+      
+      {isWorkOrderFormOpen && (
+        <WorkOrderFormModal
+          isOpen={isWorkOrderFormOpen}
+          onClose={() => setIsWorkOrderFormOpen(false)}
+          onSubmitSuccess={() => {
+            setIsWorkOrderFormOpen(false);
+            toast({
+              title: "Work Order Created",
+              description: "The work order has been created successfully"
+            });
+          }}
+          assetId={refreshedAsset.id}
+        />
+      )}
+      
+      {isDocumentUploadOpen && (
+        <DocumentUploadModal
+          isOpen={isDocumentUploadOpen}
+          onClose={() => setIsDocumentUploadOpen(false)}
+          onSuccess={() => {
+            setIsDocumentUploadOpen(false);
+            toast({
+              title: "Document Uploaded",
+              description: "The document has been uploaded successfully"
+            });
+          }}
+          assetId={refreshedAsset.id}
+        />
+      )}
     </div>
   );
 }

@@ -35,7 +35,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 
 // Extend the schema with custom validation
 const formSchema = insertWorkOrderPartSchema.extend({
-  quantity: z.string().transform(val => parseInt(val) || 1),
+  quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -55,14 +55,14 @@ export default function WorkOrderPartForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Get inventory items for dropdown
-  const { data: inventoryItems, isLoading: isLoadingItems } = useQuery({
+  const { data: inventoryItems = [], isLoading: isLoadingItems } = useQuery<any[]>({
     queryKey: ['/api/inventory-items'],
   });
 
   // Create mutation for adding part
   const createPartMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      await apiRequest("POST", "/api/work-order-parts", data);
+      await apiRequest("POST", `/api/work-orders/${workOrderId}/parts`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/work-orders/details'] });
@@ -86,7 +86,7 @@ export default function WorkOrderPartForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
       workOrderId: workOrderId,
-      quantity: "1",
+      quantity: 1,
     },
   });
 
@@ -133,7 +133,7 @@ export default function WorkOrderPartForm({
                       {isLoadingItems ? (
                         <SelectItem value="loading" disabled>Loading...</SelectItem>
                       ) : (
-                        inventoryItems?.map((item) => (
+                        inventoryItems.map((item) => (
                           <SelectItem key={item.id} value={item.id.toString()}>
                             {item.partNumber} - {item.name}
                           </SelectItem>
@@ -154,7 +154,7 @@ export default function WorkOrderPartForm({
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Unit cost:</span>
-                  <span className="font-medium">${selectedItem.unitCost?.toFixed(2) || '0.00'}</span>
+                  <span className="font-medium">${typeof selectedItem.unitCost === 'string' ? parseFloat(selectedItem.unitCost).toFixed(2) : (selectedItem.unitCost || 0).toFixed(2)}</span>
                 </div>
               </div>
             )}
@@ -171,7 +171,9 @@ export default function WorkOrderPartForm({
                       min="1" 
                       max={selectedItem?.quantityInStock || 999} 
                       placeholder="1" 
-                      {...field} 
+                      {...field}
+                      onChange={(e) => field.onChange(parseInt(e.target.value) || 1)}
+                      value={field.value}
                     />
                   </FormControl>
                   <FormDescription>

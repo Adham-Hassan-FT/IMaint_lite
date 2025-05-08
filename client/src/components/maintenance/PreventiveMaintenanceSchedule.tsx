@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -33,6 +33,15 @@ import { Calendar } from "@/components/ui/calendar";
 import { format, addMonths, isSameMonth, isSameDay, isBefore, isAfter, addDays } from "date-fns";
 import { WorkOrderWithDetails, AssetWithDetails } from "@shared/schema";
 import PreventiveMaintenanceForm from "./PreventiveMaintenanceForm";
+import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useLocation } from "wouter";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface ScheduleEvent {
   id: number;
@@ -45,11 +54,65 @@ interface ScheduleEvent {
   workOrderId?: number;
 }
 
+// Create a function to get the CSS class for each event status
+const getEventStatusClass = (status: string): string => {
+  switch (status) {
+    case 'upcoming':
+      return 'bg-blue-100 text-blue-800';
+    case 'due':
+      return 'bg-amber-100 text-amber-800';
+    case 'overdue':
+      return 'bg-red-100 text-red-800';
+    case 'completed':
+      return 'bg-green-100 text-green-800';
+    default:
+      return '';
+  }
+};
+
 export default function PreventiveMaintenanceSchedule() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("calendar");
   const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [filterStatus, setFilterStatus] = useState<string | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<ScheduleEvent | null>(null);
+  const [showEventDetails, setShowEventDetails] = useState(false);
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  
+  // Create work order mutation - moved up to avoid conditional hook error
+  const createWorkOrderMutation = useMutation({
+    mutationFn: async (event: ScheduleEvent) => {
+      // Create a work order from the maintenance event
+      const workOrderData = {
+        title: event.title,
+        description: event.description,
+        assetId: event.assetId,
+        priority: "medium",
+        status: "requested",
+        dateNeeded: event.date
+      };
+      
+      const response = await apiRequest("POST", "/api/work-orders", workOrderData);
+      return response;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/work-orders/details'] });
+      toast({
+        title: "Work Order Created",
+        description: "The work order was created successfully."
+      });
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Failed to create work order",
+        description: error.message || "An unexpected error occurred"
+      });
+    }
+  });
   
   // Get preventive maintenance schedules, work orders, and assets
   const { data: preventiveMaintenance, isLoading: isLoadingPM } = useQuery({
@@ -73,7 +136,7 @@ export default function PreventiveMaintenanceSchedule() {
     today.setHours(0, 0, 0, 0);
     
     // Process each PM schedule
-    preventiveMaintenance.forEach((pm: any) => {
+    (preventiveMaintenance as any[]).forEach((pm: any) => {
       // Skip inactive PMs
       if (!pm.isActive) return;
       
@@ -256,6 +319,224 @@ export default function PreventiveMaintenanceSchedule() {
       </Alert>
     );
   }
+  
+  // Handler for filtering events
+  const handleFilterClick = () => {
+    setIsFilterOpen(!isFilterOpen);
+  };
+  
+  // Apply filter for events by status
+  const filteredByStatusEvents = filterStatus 
+    ? filteredEvents.filter(event => event.status === filterStatus)
+    : filteredEvents;
+  
+  // Handle viewing a work order
+  const handleViewWorkOrder = (event: ScheduleEvent) => {
+    if (event.workOrderId) {
+      setLocation(`/work-orders/${event.workOrderId}`);
+    }
+  };
+  
+  // Handle creating a work order from an event
+  const handleCreateWorkOrder = (event: ScheduleEvent) => {
+    createWorkOrderMutation.mutate(event);
+  };
+  
+  // Handle viewing event details
+  const handleViewDetails = (event: ScheduleEvent) => {
+    setSelectedEvent(event);
+    setShowEventDetails(true);
+  };
+  
+  // List tab implementation
+  const renderListTab = () => {
+    return (
+      <div className="space-y-4">
+        <div className="flex justify-between">
+          <h2 className="text-2xl font-bold">Maintenance Schedule</h2>
+          
+          <div className="flex items-center gap-2">
+            <Popover open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" onClick={handleFilterClick}>
+                  <Filter className="h-4 w-4 mr-2" />
+                  Filter
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-56" align="end">
+                <div className="space-y-2">
+                  <h4 className="font-medium">Filter by Status</h4>
+                  <div className="grid gap-2">
+                    <Button 
+                      variant={filterStatus === null ? "default" : "outline"} 
+                      size="sm" 
+                      onClick={() => setFilterStatus(null)}
+                    >
+                      All
+                    </Button>
+                    <Button 
+                      variant={filterStatus === "upcoming" ? "default" : "outline"} 
+                      size="sm" 
+                      onClick={() => setFilterStatus("upcoming")}
+                    >
+                      Upcoming
+                    </Button>
+                    <Button 
+                      variant={filterStatus === "due" ? "default" : "outline"} 
+                      size="sm" 
+                      onClick={() => setFilterStatus("due")}
+                    >
+                      Due Today
+                    </Button>
+                    <Button 
+                      variant={filterStatus === "overdue" ? "default" : "outline"} 
+                      size="sm" 
+                      onClick={() => setFilterStatus("overdue")}
+                    >
+                      Overdue
+                    </Button>
+                    <Button 
+                      variant={filterStatus === "completed" ? "default" : "outline"} 
+                      size="sm" 
+                      onClick={() => setFilterStatus("completed")}
+                    >
+                      Completed
+                    </Button>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+        
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Asset</TableHead>
+              <TableHead>Maintenance Type</TableHead>
+              <TableHead>Scheduled Date</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredByStatusEvents.length > 0 ? (
+              filteredByStatusEvents.map(event => (
+                <TableRow key={event.id}>
+                  <TableCell>{event.assetNumber}</TableCell>
+                  <TableCell>{event.title}</TableCell>
+                  <TableCell>{formatEventDate(event.date)}</TableCell>
+                  <TableCell>
+                    <Badge 
+                      variant="outline" 
+                      className={getEventStatusClass(event.status)}
+                    >
+                      {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleViewDetails(event)}>
+                        Details
+                      </Button>
+                      
+                      {event.workOrderId ? (
+                        <Button size="sm" variant="default" onClick={() => handleViewWorkOrder(event)}>
+                          View Work Order
+                        </Button>
+                      ) : (
+                        <Button size="sm" variant="default" onClick={() => handleCreateWorkOrder(event)}>
+                          Create Work Order
+                        </Button>
+                      )}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-4">
+                  No scheduled maintenance for this period
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    );
+  };
+
+  // Event details dialog
+  const renderEventDetailsDialog = () => {
+    if (!selectedEvent) return null;
+    
+    return (
+      <Dialog open={showEventDetails} onOpenChange={setShowEventDetails}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Maintenance Details</DialogTitle>
+            <DialogDescription>
+              Details for the scheduled maintenance
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div>
+              <h4 className="font-medium text-sm text-muted-foreground">Title</h4>
+              <p className="mt-1">{selectedEvent.title}</p>
+            </div>
+            
+            <div>
+              <h4 className="font-medium text-sm text-muted-foreground">Asset</h4>
+              <p className="mt-1">{selectedEvent.assetNumber}</p>
+            </div>
+            
+            <div>
+              <h4 className="font-medium text-sm text-muted-foreground">Description</h4>
+              <p className="mt-1">{selectedEvent.description}</p>
+            </div>
+            
+            <div>
+              <h4 className="font-medium text-sm text-muted-foreground">Scheduled Date</h4>
+              <p className="mt-1">{formatEventDate(selectedEvent.date)}</p>
+            </div>
+            
+            <div>
+              <h4 className="font-medium text-sm text-muted-foreground">Status</h4>
+              <Badge 
+                variant="outline" 
+                className={getEventStatusClass(selectedEvent.status)}
+              >
+                {selectedEvent.status.charAt(0).toUpperCase() + selectedEvent.status.slice(1)}
+              </Badge>
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setShowEventDetails(false)}>
+              Close
+            </Button>
+            
+            {selectedEvent.workOrderId ? (
+              <Button onClick={() => {
+                handleViewWorkOrder(selectedEvent);
+                setShowEventDetails(false);
+              }}>
+                View Work Order
+              </Button>
+            ) : (
+              <Button onClick={() => {
+                handleCreateWorkOrder(selectedEvent);
+                setShowEventDetails(false);
+              }}>
+                Create Work Order
+              </Button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  };
   
   return (
     <div className="space-y-4">
@@ -457,115 +738,11 @@ export default function PreventiveMaintenanceSchedule() {
         </TabsContent>
         
         <TabsContent value="list" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-center">
-                <CardTitle>Maintenance Schedule</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      // We'll implement filtering in a future update
-                      alert("Filtering will be implemented in a future update");
-                    }}
-                  >
-                    <Filter className="h-4 w-4 mr-2" />
-                    Filter
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => {
-                      // Refresh data by refetching the queries
-                      window.location.reload();
-                    }}
-                  >
-                    <RotateCw className="h-4 w-4 mr-2" />
-                    Refresh
-                  </Button>
-                </div>
-              </div>
-              <CardDescription>
-                Complete list of all scheduled preventive maintenance activities
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Asset</TableHead>
-                    <TableHead>Maintenance</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Work Order</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {maintenanceEvents.map(event => (
-                    <TableRow key={event.id}>
-                      <TableCell className="font-medium">{event.assetNumber}</TableCell>
-                      <TableCell>{event.title}</TableCell>
-                      <TableCell>{formatEventDate(event.date)}</TableCell>
-                      <TableCell>
-                        <Badge 
-                          variant={
-                            event.status === 'completed' ? 'outline' : 
-                            event.status === 'overdue' ? 'destructive' : 
-                            event.status === 'due' ? 'secondary' : 'default'
-                          }
-                        >
-                          {event.status.charAt(0).toUpperCase() + event.status.slice(1)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {event.workOrderId ? (
-                          <Button 
-                            variant="link" 
-                            className="p-0 h-auto"
-                            onClick={() => {
-                              // View work order
-                              alert(`Viewing work order: ${workOrders?.find(wo => wo.id === event.workOrderId)?.workOrderNumber}`);
-                            }}
-                          >
-                            {workOrders?.find(wo => wo.id === event.workOrderId)?.workOrderNumber || 'View'}
-                          </Button>
-                        ) : (
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => {
-                              // Create work order
-                              alert(`Creating work order for maintenance: ${event.title}\nAsset: ${event.assetNumber}`);
-                            }}
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Create
-                          </Button>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-8 w-8 p-0"
-                          onClick={() => {
-                            // Show details for this event
-                            alert(`Details for maintenance: ${event.title}\nAsset: ${event.assetNumber}\nStatus: ${event.status}\nDate: ${formatEventDate(event.date)}`);
-                          }}
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
+          {renderListTab()}
         </TabsContent>
       </Tabs>
+      
+      {renderEventDetailsDialog()}
       
       {isFormOpen && (
         <PreventiveMaintenanceForm

@@ -70,6 +70,164 @@ export default function WorkOrderDetails({ workOrder, onClose }: WorkOrderDetail
     initialData: workOrder,
   });
 
+  // Format dates for display
+  const formatDate = (dateString?: string | Date | null) => {
+    if (!dateString) return 'Not specified';
+    const dateObj = typeof dateString === 'string' ? new Date(dateString) : dateString;
+    return format(dateObj, 'MMM d, yyyy');
+  };
+  
+  // Calculate total labor hours - ensure numeric values
+  const totalLaborHours: number = refreshedWorkOrder.laborEntries?.reduce(
+    (sum: number, entry) => sum + Number(entry.hours), 
+    0
+  ) || 0;
+  
+  // Calculate total parts cost - ensure numeric values
+  const totalPartsCost: number = refreshedWorkOrder.parts?.reduce(
+    (sum: number, part) => sum + (part.quantity * Number(part.inventoryItem?.unitCost || 0)), 
+    0
+  ) || 0;
+
+  // Handle print functionality
+  const handlePrint = () => {
+    // Create a printable version of the work order
+    const printContent = document.createElement('div');
+    printContent.innerHTML = `
+      <div style="padding: 20px;">
+        <h1 style="font-size: 20px; text-align: center; margin-bottom: 20px;">WORK ORDER: ${refreshedWorkOrder.workOrderNumber}</h1>
+        <div style="margin-bottom: 20px;">
+          <h2 style="font-size: 16px; margin-bottom: 10px;">${refreshedWorkOrder.title}</h2>
+          <div style="margin-bottom: 10px;">
+            <strong>Status:</strong> ${refreshedWorkOrder.status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+          </div>
+          <div style="margin-bottom: 10px;">
+            <strong>Priority:</strong> ${refreshedWorkOrder.priority.charAt(0).toUpperCase() + refreshedWorkOrder.priority.slice(1)}
+          </div>
+          <div style="margin-bottom: 10px;">
+            <strong>Description:</strong> ${refreshedWorkOrder.description || 'N/A'}
+          </div>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 14px; margin-bottom: 10px;">Time Information</h3>
+          <div><strong>Date Requested:</strong> ${formatDate(refreshedWorkOrder.dateRequested)}</div>
+          <div><strong>Date Needed:</strong> ${formatDate(refreshedWorkOrder.dateNeeded)}</div>
+          <div><strong>Date Completed:</strong> ${formatDate(refreshedWorkOrder.dateCompleted)}</div>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 14px; margin-bottom: 10px;">Asset Information</h3>
+          <div><strong>Asset Number:</strong> ${refreshedWorkOrder.asset?.assetNumber || 'N/A'}</div>
+          <div><strong>Description:</strong> ${refreshedWorkOrder.asset?.description || 'N/A'}</div>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 14px; margin-bottom: 10px;">Personnel</h3>
+          <div><strong>Requested By:</strong> ${refreshedWorkOrder.requestedBy?.fullName || 'N/A'}</div>
+          <div><strong>Assigned To:</strong> ${refreshedWorkOrder.assignedTo?.fullName || 'N/A'}</div>
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 14px; margin-bottom: 10px;">Labor</h3>
+          ${refreshedWorkOrder.laborEntries && refreshedWorkOrder.laborEntries.length > 0 
+            ? `<table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                  <tr style="border-bottom: 1px solid #ccc;">
+                    <th style="text-align: left; padding: 8px;">Technician</th>
+                    <th style="text-align: left; padding: 8px;">Date</th>
+                    <th style="text-align: left; padding: 8px;">Hours</th>
+                    <th style="text-align: left; padding: 8px;">Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${refreshedWorkOrder.laborEntries.map(labor => `
+                    <tr style="border-bottom: 1px solid #eee;">
+                      <td style="padding: 8px;">${labor.userId ? refreshedWorkOrder.assignedTo?.fullName || 'Unknown' : 'Not assigned'}</td>
+                      <td style="padding: 8px;">${formatDate(labor.datePerformed)}</td>
+                      <td style="padding: 8px;">${labor.hours}</td>
+                      <td style="padding: 8px;">${labor.notes || '-'}</td>
+                    </tr>
+                  `).join('')}
+                  <tr>
+                    <td style="padding: 8px; font-weight: bold;" colspan="2">Total Hours:</td>
+                    <td style="padding: 8px; font-weight: bold;">${totalLaborHours}</td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>`
+            : '<div>No labor entries recorded.</div>'
+          }
+        </div>
+        
+        <div style="margin-bottom: 20px;">
+          <h3 style="font-size: 14px; margin-bottom: 10px;">Parts</h3>
+          ${refreshedWorkOrder.parts && refreshedWorkOrder.parts.length > 0 
+            ? `<table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                  <tr style="border-bottom: 1px solid #ccc;">
+                    <th style="text-align: left; padding: 8px;">Part Number</th>
+                    <th style="text-align: left; padding: 8px;">Name</th>
+                    <th style="text-align: left; padding: 8px;">Quantity</th>
+                    <th style="text-align: right; padding: 8px;">Unit Cost</th>
+                    <th style="text-align: right; padding: 8px;">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${refreshedWorkOrder.parts.map(part => `
+                    <tr style="border-bottom: 1px solid #eee;">
+                      <td style="padding: 8px;">${part.inventoryItem?.partNumber || 'Unknown'}</td>
+                      <td style="padding: 8px;">${part.inventoryItem?.name || 'Unknown Part'}</td>
+                      <td style="padding: 8px;">${part.quantity}</td>
+                      <td style="padding: 8px; text-align: right;">$${Number(part.inventoryItem?.unitCost || 0).toFixed(2)}</td>
+                      <td style="padding: 8px; text-align: right;">$${(part.quantity * Number(part.inventoryItem?.unitCost || 0)).toFixed(2)}</td>
+                    </tr>
+                  `).join('')}
+                  <tr>
+                    <td style="padding: 8px; font-weight: bold;" colspan="4">Total Cost:</td>
+                    <td style="padding: 8px; font-weight: bold; text-align: right;">$${totalPartsCost.toFixed(2)}</td>
+                  </tr>
+                </tbody>
+              </table>`
+            : '<div>No parts recorded.</div>'
+          }
+        </div>
+      </div>
+    `;
+    
+    // Open a new window for printing
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(`
+        <html>
+          <head>
+            <title>Work Order ${refreshedWorkOrder.workOrderNumber}</title>
+          </head>
+          <body>
+            ${printContent.innerHTML}
+            <script>
+              // Auto-print when loaded
+              window.onload = function() {
+                window.print();
+                // The following timeout is to prevent the window from closing before print dialog shows up
+                setTimeout(function() {
+                  window.close();
+                }, 500);
+              };
+            </script>
+          </body>
+        </html>
+      `);
+      printWindow.document.close();
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Print Error",
+        description: "Unable to open print window. Please check your popup blocker settings.",
+      });
+    }
+  };
+
   // Status update mutation
   const updateStatusMutation = useMutation({
     mutationFn: async (status: string) => {
@@ -112,24 +270,6 @@ export default function WorkOrderDetails({ workOrder, onClose }: WorkOrderDetail
   };
 
   const availableTransitions = getAvailableStatusTransitions(refreshedWorkOrder.status);
-
-  // Format dates for display
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return 'Not specified';
-    return format(new Date(dateString), 'MMM d, yyyy');
-  };
-  
-  // Calculate total labor hours
-  const totalLaborHours = refreshedWorkOrder.laborEntries?.reduce(
-    (sum, entry) => sum + entry.hoursSpent, 
-    0
-  ) || 0;
-  
-  // Calculate total parts cost
-  const totalPartsCost = refreshedWorkOrder.parts?.reduce(
-    (sum, part) => sum + (part.quantity * (part.inventoryItem?.unitCost || 0)), 
-    0
-  ) || 0;
 
   return (
     <div className="space-y-4">
@@ -235,8 +375,8 @@ export default function WorkOrderDetails({ workOrder, onClose }: WorkOrderDetail
                         <dl className="space-y-2 text-sm">
                           <div className="flex justify-between">
                             <dt className="text-muted-foreground">Estimated Cost:</dt>
-                            <dd>${typeof refreshedWorkOrder.estimatedCost === 'number' 
-                                  ? refreshedWorkOrder.estimatedCost.toFixed(2) 
+                            <dd>${refreshedWorkOrder.estimatedCost 
+                                  ? Number(refreshedWorkOrder.estimatedCost).toFixed(2) 
                                   : '0.00'}</dd>
                           </div>
                           <div className="flex justify-between">
@@ -395,7 +535,7 @@ export default function WorkOrderDetails({ workOrder, onClose }: WorkOrderDetail
                               <span className="text-sm">Approved</span>
                             </div>
                             <span className="text-xs text-muted-foreground">
-                              {formatDate(refreshedWorkOrder.dateUpdated)}
+                              {formatDate(new Date())}
                             </span>
                           </div>
                         ) : null}
@@ -415,7 +555,7 @@ export default function WorkOrderDetails({ workOrder, onClose }: WorkOrderDetail
                   </div>
                 </CardContent>
                 <CardFooter>
-                  <Button variant="outline" className="w-full">Print Work Order</Button>
+                  <Button variant="outline" className="w-full" onClick={handlePrint}>Print Work Order</Button>
                 </CardFooter>
               </Card>
             </div>
@@ -458,7 +598,7 @@ export default function WorkOrderDetails({ workOrder, onClose }: WorkOrderDetail
                             {formatDate(labor.datePerformed)}
                           </td>
                           <td className="p-3 text-sm font-medium">
-                            {labor.hoursSpent}
+                            {labor.hours}
                           </td>
                           <td className="p-3 text-sm">
                             {labor.notes || '-'}
@@ -539,10 +679,10 @@ export default function WorkOrderDetails({ workOrder, onClose }: WorkOrderDetail
                             {part.quantity}
                           </td>
                           <td className="p-3 text-sm text-right">
-                            ${part.inventoryItem?.unitCost?.toFixed(2) || '0.00'}
+                            ${Number(part.inventoryItem?.unitCost || 0).toFixed(2)}
                           </td>
                           <td className="p-3 text-sm font-medium text-right">
-                            ${(part.quantity * (part.inventoryItem?.unitCost || 0)).toFixed(2)}
+                            ${(part.quantity * Number(part.inventoryItem?.unitCost || 0)).toFixed(2)}
                           </td>
                         </tr>
                       ))}

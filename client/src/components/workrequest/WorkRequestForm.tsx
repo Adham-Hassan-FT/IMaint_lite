@@ -124,14 +124,6 @@ export default function WorkRequestForm({ onClose, onSubmitSuccess }: WorkReques
           <DialogDescription>
             Create a new work request for maintenance or repair
           </DialogDescription>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="absolute right-4 top-4" 
-            onClick={handleClose}
-          >
-            <X className="h-4 w-4" />
-          </Button>
         </DialogHeader>
         
         <Form {...form}>

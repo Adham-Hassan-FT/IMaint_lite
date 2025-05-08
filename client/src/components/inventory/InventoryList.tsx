@@ -181,7 +181,9 @@ export default function InventoryList() {
                           </div>
                           <div className="flex justify-between text-xs sm:text-sm">
                             <span className="text-muted-foreground">Unit Cost:</span>
-                            <span>${item.unitCost?.toFixed(2) || '0.00'}</span>
+                            <span>${typeof item.unitCost === 'string' 
+                              ? parseFloat(item.unitCost || '0').toFixed(2) 
+                              : (item.unitCost || 0).toFixed(2)}</span>
                           </div>
                           <div className="flex justify-between text-xs sm:text-sm">
                             <span className="text-muted-foreground">Location:</span>

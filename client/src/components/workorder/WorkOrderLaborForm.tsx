@@ -39,11 +39,10 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-// Extend the schema with custom validation
+// Create a modified schema for the form
 const formSchema = insertWorkOrderLaborSchema.extend({
   datePerformed: z.date(),
-  hoursSpent: z.string().transform(val => parseFloat(val) || 0),
-  notes: z.string().optional(),
+  hours: z.coerce.number().min(0.1, "Hours must be at least 0.1"),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -63,14 +62,14 @@ export default function WorkOrderLaborForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Get users for dropdown
-  const { data: users, isLoading: isLoadingUsers } = useQuery({
+  const { data: users = [], isLoading: isLoadingUsers } = useQuery<any[]>({
     queryKey: ['/api/users'],
   });
 
   // Create mutation for adding labor
   const createLaborMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      await apiRequest("POST", "/api/work-order-labor", data);
+      await apiRequest("POST", `/api/work-orders/${workOrderId}/labor`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/work-orders/details'] });
@@ -95,7 +94,7 @@ export default function WorkOrderLaborForm({
     defaultValues: {
       workOrderId: workOrderId,
       datePerformed: new Date(),
-      hoursSpent: "1",
+      hours: 1,
       notes: "",
     },
   });
@@ -139,7 +138,7 @@ export default function WorkOrderLaborForm({
                       {isLoadingUsers ? (
                         <SelectItem value="loading" disabled>Loading...</SelectItem>
                       ) : (
-                        users?.map((user) => (
+                        users.map((user) => (
                           <SelectItem key={user.id} value={user.id.toString()}>
                             {user.fullName}
                           </SelectItem>
@@ -193,7 +192,7 @@ export default function WorkOrderLaborForm({
             
             <FormField
               control={form.control}
-              name="hoursSpent"
+              name="hours"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Hours Spent</FormLabel>
@@ -203,7 +202,9 @@ export default function WorkOrderLaborForm({
                       min="0.1" 
                       step="0.1" 
                       placeholder="1" 
-                      {...field} 
+                      {...field}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                      value={field.value}
                     />
                   </FormControl>
                   <FormDescription>
@@ -224,6 +225,7 @@ export default function WorkOrderLaborForm({
                     <Textarea 
                       placeholder="Work performed, issues encountered, etc." 
                       {...field} 
+                      value={field.value || ''}
                     />
                   </FormControl>
                   <FormMessage />

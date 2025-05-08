@@ -1,3 +1,5 @@
+import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { WorkRequestWithDetails } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +24,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { Separator } from "@/components/ui/separator";
+import { useLocation } from "wouter";
+import { apiRequest } from "@/lib/queryClient";
 
 interface WorkRequestDetailsProps {
   workRequest: WorkRequestWithDetails;
@@ -47,10 +51,26 @@ const priorityColors: Record<string, string> = {
 };
 
 export default function WorkRequestDetails({ 
-  workRequest, 
+  workRequest: initialWorkRequest, 
   onClose,
   onConvert 
 }: WorkRequestDetailsProps) {
+  const [, setLocation] = useLocation();
+  const [workRequest, setWorkRequest] = useState<WorkRequestWithDetails>(initialWorkRequest);
+  
+  // Fetch the latest data for this work request
+  const { data: refreshedWorkRequest } = useQuery<WorkRequestWithDetails>({
+    queryKey: [`/api/work-requests/${initialWorkRequest.id}/details`],
+    enabled: !!initialWorkRequest.id,
+  });
+  
+  // Update local state when refreshed data is available
+  useEffect(() => {
+    if (refreshedWorkRequest) {
+      setWorkRequest(refreshedWorkRequest);
+    }
+  }, [refreshedWorkRequest]);
+  
   const formattedDateRequested = workRequest.dateRequested 
     ? format(new Date(workRequest.dateRequested), 'MMM d, yyyy, h:mm a') 
     : 'N/A';
@@ -58,6 +78,16 @@ export default function WorkRequestDetails({
   const formattedDateNeeded = workRequest.dateNeeded 
     ? format(new Date(workRequest.dateNeeded), 'MMM d, yyyy') 
     : 'N/A';
+
+  const viewWorkOrder = () => {
+    if (workRequest.convertedToWorkOrder) {
+      setLocation(`/work-orders/${workRequest.convertedToWorkOrder.id}`);
+    }
+  };
+
+  const handleConvert = (id: number) => {
+    onConvert(id);
+  };
 
   return (
     <div className="space-y-4">
@@ -127,17 +157,22 @@ export default function WorkRequestDetails({
                   </div>
                   
                   <div className="mt-4">
-                    <Button variant="outline" size="sm" className="w-full">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={viewWorkOrder}
+                    >
                       View Work Order
                     </Button>
                   </div>
                 </div>
               )}
             </CardContent>
-            {!workRequest.isConverted && (
+            {!workRequest.isConverted && !workRequest.convertedToWorkOrder && (
               <CardFooter>
                 <Button 
-                  onClick={() => onConvert(workRequest.id)} 
+                  onClick={() => handleConvert(workRequest.id)} 
                   className="w-full"
                 >
                   <ArrowRightCircle className="mr-2 h-5 w-5" />

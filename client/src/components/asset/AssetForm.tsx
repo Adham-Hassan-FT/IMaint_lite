@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -51,11 +51,13 @@ type FormValues = z.infer<typeof formSchema>;
 interface AssetFormProps {
   onClose: () => void;
   onSubmitSuccess: () => void;
+  editAsset?: any; // The asset to edit, if provided
 }
 
-export default function AssetForm({ onClose, onSubmitSuccess }: AssetFormProps) {
+export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: AssetFormProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const isEditing = !!editAsset;
   
   // Get asset types for selection
   const { data: assetTypes, isLoading: isLoadingTypes } = useQuery({
@@ -66,6 +68,42 @@ export default function AssetForm({ onClose, onSubmitSuccess }: AssetFormProps) 
   const { data: assets, isLoading: isLoadingAssets } = useQuery({
     queryKey: ['/api/assets'],
   });
+
+  // Helper function to safely parse date strings
+  const parseDate = (dateString: string | null | undefined): Date | undefined => {
+    if (!dateString) return undefined;
+    try {
+      const date = new Date(dateString);
+      return isNaN(date.getTime()) ? undefined : date;
+    } catch (e) {
+      return undefined;
+    }
+  };
+
+  // Prepare default values for the form
+  const defaultValues = isEditing ? {
+    assetNumber: editAsset.assetNumber || "",
+    description: editAsset.description || "",
+    status: editAsset.status || "operational",
+    typeId: editAsset.typeId || undefined,
+    parentId: editAsset.parentId || null,
+    location: editAsset.location || "",
+    manufacturer: editAsset.manufacturer || "",
+    model: editAsset.model || "",
+    serialNumber: editAsset.serialNumber || "",
+    installDate: editAsset.installDate ? new Date(editAsset.installDate) : undefined,
+    warrantyExpiration: editAsset.warrantyExpiration ? new Date(editAsset.warrantyExpiration) : undefined,
+    replacementCost: editAsset.replacementCost ? editAsset.replacementCost.toString() : "",
+    barcode: editAsset.barcode || "",
+  } : {
+    assetNumber: "",
+    description: "",
+    status: "operational",
+    location: "",
+    manufacturer: "",
+    model: "",
+    serialNumber: "",
+  };
 
   // Create mutation for creating asset
   const createAssetMutation = useMutation({
@@ -89,24 +127,65 @@ export default function AssetForm({ onClose, onSubmitSuccess }: AssetFormProps) 
       });
     },
   });
+  
+  // Update mutation for editing asset
+  const updateAssetMutation = useMutation({
+    mutationFn: async (data: FormValues) => {
+      await apiRequest("PUT", `/api/assets/${editAsset.id}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/assets/details'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/assets'] });
+      queryClient.invalidateQueries({ queryKey: [`/api/assets/${editAsset.id}/details`] });
+      toast({
+        title: "Asset Updated",
+        description: "The asset was updated successfully",
+      });
+      onSubmitSuccess();
+    },
+    onError: (error) => {
+      toast({
+        variant: "destructive",
+        title: "Failed to update asset",
+        description: error.message || "An unexpected error occurred",
+      });
+    },
+  });
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      assetNumber: "",
-      description: "",
-      status: "operational",
-      location: "",
-      manufacturer: "",
-      model: "",
-      serialNumber: "",
-    },
+    defaultValues,
   });
+
+  // Effect to update form values when editAsset changes
+  useEffect(() => {
+    if (isEditing) {
+      form.reset({
+        assetNumber: editAsset.assetNumber || "",
+        description: editAsset.description || "",
+        status: editAsset.status || "operational",
+        typeId: editAsset.typeId || undefined,
+        parentId: editAsset.parentId || null,
+        location: editAsset.location || "",
+        manufacturer: editAsset.manufacturer || "",
+        model: editAsset.model || "",
+        serialNumber: editAsset.serialNumber || "",
+        installDate: editAsset.installDate ? new Date(editAsset.installDate) : undefined,
+        warrantyExpiration: editAsset.warrantyExpiration ? new Date(editAsset.warrantyExpiration) : undefined,
+        replacementCost: editAsset.replacementCost ? editAsset.replacementCost.toString() : "",
+        barcode: editAsset.barcode || "",
+      });
+    }
+  }, [editAsset, isEditing, form]);
 
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true);
     try {
-      await createAssetMutation.mutateAsync(data);
+      if (isEditing) {
+        await updateAssetMutation.mutateAsync(data);
+      } else {
+        await createAssetMutation.mutateAsync(data);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -116,9 +195,11 @@ export default function AssetForm({ onClose, onSubmitSuccess }: AssetFormProps) 
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Asset</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit Asset' : 'Create New Asset'}</DialogTitle>
           <DialogDescription>
-            Enter the details for the new asset
+            {isEditing 
+              ? 'Update the details for this asset' 
+              : 'Enter the details for the new asset'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -215,7 +296,7 @@ export default function AssetForm({ onClose, onSubmitSuccess }: AssetFormProps) 
               name="parentId"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Parent Asset (Optional)</FormLabel>
+                  <FormLabel>Parent Asset</FormLabel>
                   <Select 
                     onValueChange={(value) => field.onChange(value === "none" ? null : Number(value))} 
                     value={field.value?.toString() || "none"}
@@ -230,7 +311,7 @@ export default function AssetForm({ onClose, onSubmitSuccess }: AssetFormProps) 
                       {isLoadingAssets ? (
                         <SelectItem value="loading" disabled>Loading...</SelectItem>
                       ) : (
-                        assets?.map((asset) => (
+                        assets?.filter(asset => asset.id !== editAsset?.id).map((asset) => (
                           <SelectItem key={asset.id} value={asset.id.toString()}>
                             {asset.assetNumber} - {asset.description}
                           </SelectItem>
@@ -406,7 +487,9 @@ export default function AssetForm({ onClose, onSubmitSuccess }: AssetFormProps) 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create Asset"}
+                {isSubmitting 
+                  ? (isEditing ? "Updating..." : "Creating...") 
+                  : (isEditing ? "Update Asset" : "Create Asset")}
               </Button>
             </DialogFooter>
           </form>

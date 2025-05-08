@@ -19,23 +19,26 @@ import {
   SelectTrigger, 
   SelectValue 
 } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { WorkOrder, Asset, InventoryItem } from "@shared/schema";
 
 export default function Reports() {
+  const { toast } = useToast();
   const [timeFrame, setTimeFrame] = useState("monthly");
   const [reportType, setReportType] = useState("workOrders");
 
   // Queries to fetch data for reports
-  const { data: workOrders, isLoading: workOrdersLoading } = useQuery({
+  const { data: workOrders = [], isLoading: workOrdersLoading } = useQuery<WorkOrder[]>({
     queryKey: ['/api/work-orders'],
     enabled: reportType === "workOrders"
   });
 
-  const { data: assets, isLoading: assetsLoading } = useQuery({
+  const { data: assets = [], isLoading: assetsLoading } = useQuery<Asset[]>({
     queryKey: ['/api/assets'],
     enabled: reportType === "assets"
   });
 
-  const { data: inventory, isLoading: inventoryLoading } = useQuery({
+  const { data: inventory = [], isLoading: inventoryLoading } = useQuery<InventoryItem[]>({
     queryKey: ['/api/inventory-items'],
     enabled: reportType === "inventory"
   });
@@ -46,9 +49,9 @@ export default function Reports() {
   const getSummary = () => {
     switch (reportType) {
       case "workOrders":
-        const totalWO = workOrders?.length || 0;
-        const completedWO = workOrders?.filter(wo => wo.status === "completed")?.length || 0;
-        const inProgressWO = workOrders?.filter(wo => wo.status === "in_progress")?.length || 0;
+        const totalWO = workOrders.length;
+        const completedWO = workOrders.filter(wo => wo.status === "completed").length;
+        const inProgressWO = workOrders.filter(wo => wo.status === "in_progress").length;
         return {
           total: totalWO,
           completed: completedWO,
@@ -56,17 +59,17 @@ export default function Reports() {
           pending: totalWO - completedWO - inProgressWO
         };
       case "assets":
-        const totalAssets = assets?.length || 0;
-        const activeAssets = assets?.filter(asset => asset.isActive)?.length || 0;
+        const totalAssets = assets.length;
+        const activeAssets = assets.filter(asset => asset.status === "operational").length;
         return {
           total: totalAssets,
           active: activeAssets,
           inactive: totalAssets - activeAssets
         };
       case "inventory":
-        const totalInventory = inventory?.length || 0;
-        const lowStock = inventory?.filter(item => 
-          item.quantityInStock <= (item.reorderPoint || 0))?.length || 0;
+        const totalInventory = inventory.length;
+        const lowStock = inventory.filter(item => 
+          (item.quantityInStock || 0) <= (item.reorderPoint || 0)).length;
         return {
           total: totalInventory,
           lowStock: lowStock,
@@ -78,6 +81,112 @@ export default function Reports() {
   };
 
   const summary = getSummary();
+
+  // Function to export data to CSV
+  const exportToCSV = () => {
+    let data: any[] = [];
+    let filename = '';
+    let headers: string[] = [];
+    
+    switch (reportType) {
+      case "workOrders":
+        data = workOrders || [];
+        filename = `work-orders-report-${timeFrame}-${new Date().toISOString().split('T')[0]}.csv`;
+        headers = ['ID', 'Work Order Number', 'Title', 'Status', 'Priority', 'Created Date', 'Due Date', 'Completed Date'];
+        break;
+      case "assets":
+        data = assets || [];
+        filename = `assets-report-${timeFrame}-${new Date().toISOString().split('T')[0]}.csv`;
+        headers = ['ID', 'Asset Number', 'Description', 'Status', 'Location', 'Model', 'Install Date'];
+        break;
+      case "inventory":
+        data = inventory || [];
+        filename = `inventory-report-${timeFrame}-${new Date().toISOString().split('T')[0]}.csv`;
+        headers = ['ID', 'Part Number', 'Name', 'Quantity In Stock', 'Reorder Point', 'Unit Cost', 'Location'];
+        break;
+      default:
+        toast({
+          variant: "destructive",
+          title: "Export Failed",
+          description: "No data available to export."
+        });
+        return;
+    }
+    
+    if (data.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Export Failed",
+        description: "No data available to export."
+      });
+      return;
+    }
+    
+    // Create CSV content
+    let csvContent = headers.join(',') + '\n';
+    
+    data.forEach(item => {
+      let row = '';
+      switch (reportType) {
+        case "workOrders":
+          row = [
+            item.id,
+            `"${item.workOrderNumber}"`,
+            `"${item.title}"`,
+            `"${item.status}"`,
+            `"${item.priority}"`,
+            item.dateRequested ? new Date(item.dateRequested).toLocaleDateString() : '',
+            item.dateNeeded ? new Date(item.dateNeeded).toLocaleDateString() : '',
+            item.dateCompleted ? new Date(item.dateCompleted).toLocaleDateString() : ''
+          ].join(',');
+          break;
+        case "assets":
+          row = [
+            item.id,
+            `"${item.assetNumber}"`,
+            `"${item.description}"`,
+            `"${item.status}"`,
+            `"${item.location || ''}"`,
+            `"${item.model || ''}"`,
+            item.installDate ? new Date(item.installDate).toLocaleDateString() : ''
+          ].join(',');
+          break;
+        case "inventory":
+          row = [
+            item.id,
+            `"${item.partNumber}"`,
+            `"${item.name}"`,
+            item.quantityInStock,
+            item.reorderPoint || 0,
+            item.unitCost || 0,
+            `"${item.location || ''}"`
+          ].join(',');
+          break;
+      }
+      csvContent += row + '\n';
+    });
+    
+    // Create download link
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({
+      title: "Export Successful",
+      description: `Report has been downloaded as ${filename}`
+    });
+  };
+
+  // Function to download specific report
+  const downloadReport = () => {
+    exportToCSV();
+  };
 
   return (
     <div className="container mx-auto py-6">
@@ -103,7 +212,7 @@ export default function Reports() {
             <Filter className="mr-2 h-4 w-4" />
             Filters
           </Button>
-          <Button variant="outline" size="sm">
+          <Button variant="outline" size="sm" onClick={exportToCSV}>
             <FileText className="mr-2 h-4 w-4" />
             Export
           </Button>
@@ -213,7 +322,7 @@ export default function Reports() {
                 <p className="ml-4 text-muted-foreground">Chart visualization will be displayed here</p>
               </CardContent>
               <CardFooter className="border-t px-6 py-4">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={downloadReport}>
                   <FileText className="mr-2 h-4 w-4" />
                   Download Report
                 </Button>

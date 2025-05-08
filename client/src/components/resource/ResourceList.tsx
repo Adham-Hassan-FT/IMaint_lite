@@ -63,7 +63,7 @@ export default function ResourceList() {
 
   // Calculate assigned work orders for each user
   const getAssignedWorkOrderCount = (userId: number) => {
-    if (!workOrders) return 0;
+    if (!workOrders || !Array.isArray(workOrders)) return 0;
     return workOrders.filter(wo => wo.assignedToId === userId).length;
   };
 
@@ -80,10 +80,6 @@ export default function ResourceList() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">
-            <Calendar className="mr-2 h-4 w-4" />
-            Schedule
-          </Button>
           <Button onClick={() => setShowResourceForm(true)}>
             Add Resource
           </Button>

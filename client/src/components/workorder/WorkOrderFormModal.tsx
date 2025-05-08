@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -31,9 +31,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { X } from "lucide-react";
+import { X, Link2, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 // Extend the schema with custom validation
 const formSchema = insertWorkOrderSchema.extend({
@@ -71,6 +73,12 @@ export default function WorkOrderFormModal({
     enabled: isOpen && !assetId,
   });
   
+  // Get the specific asset details if assetId is provided
+  const { data: selectedAsset } = useQuery({
+    queryKey: [`/api/assets/${assetId}`],
+    enabled: isOpen && !!assetId,
+  });
+  
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -84,6 +92,17 @@ export default function WorkOrderFormModal({
       estimatedCost: null,
     },
   });
+  
+  // Update form when asset is loaded
+  useEffect(() => {
+    if (selectedAsset && assetId) {
+      // Pre-populate title with asset info if empty
+      const currentTitle = form.getValues('title');
+      if (!currentTitle) {
+        form.setValue('title', `Maintenance for ${selectedAsset.assetNumber} - ${selectedAsset.description}`);
+      }
+    }
+  }, [selectedAsset, assetId, form]);
 
   const createWorkOrderMutation = useMutation({
     mutationFn: async (data: FormValues) => {
@@ -122,9 +141,16 @@ export default function WorkOrderFormModal({
     }
   };
 
+  const statusColors: Record<string, string> = {
+    operational: "bg-green-100 text-green-800",
+    non_operational: "bg-red-100 text-red-800",
+    maintenance_required: "bg-amber-100 text-amber-800",
+    retired: "bg-gray-100 text-gray-800",
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create Work Order</DialogTitle>
           <DialogDescription>
@@ -139,6 +165,31 @@ export default function WorkOrderFormModal({
             <X className="h-4 w-4" />
           </Button>
         </DialogHeader>
+
+        {assetId && selectedAsset && (
+          <Card className="bg-muted/50 mb-4">
+            <CardContent className="p-4">
+              <div className="flex items-center mb-2">
+                <Link2 className="h-4 w-4 mr-2 text-primary" />
+                <h3 className="text-sm font-medium">Associated Asset</h3>
+              </div>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <p className="text-sm font-medium">{selectedAsset.assetNumber}</p>
+                  {selectedAsset.status && (
+                    <Badge className={statusColors[selectedAsset.status]}>
+                      {selectedAsset.status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm">{selectedAsset.description}</p>
+                {selectedAsset.location && (
+                  <p className="text-xs text-muted-foreground">Location: {selectedAsset.location}</p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -257,6 +308,9 @@ export default function WorkOrderFormModal({
                           ))}
                         </SelectContent>
                       </Select>
+                      <FormDescription>
+                        Select the asset this work order is for
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -267,27 +321,55 @@ export default function WorkOrderFormModal({
                 control={form.control}
                 name="estimatedCost"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className={!assetId ? "" : "col-span-2"}>
                     <FormLabel>Estimated Cost</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="number" 
-                        step="0.01" 
-                        min="0"
-                        placeholder="0.00" 
-                        {...field}
-                        value={field.value || ''}
-                        onChange={(e) => {
-                          const value = e.target.value ? parseFloat(e.target.value) : null;
-                          field.onChange(value);
-                        }}
-                      />
+                      <div className="flex">
+                        <span className="flex items-center bg-muted px-3 rounded-l-md border border-r-0 border-input">$</span>
+                        <Input 
+                          type="number" 
+                          step="0.01" 
+                          placeholder="0.00" 
+                          className="rounded-l-none"
+                          {...field}
+                          onChange={(e) => field.onChange(e.target.value === "" ? null : parseFloat(e.target.value))}
+                          value={field.value === null ? "" : field.value}
+                        />
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Status</FormLabel>
+                  <Select
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {workOrderStatusEnum.enumValues.map((status) => (
+                        <SelectItem key={status} value={status}>
+                          {status.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>

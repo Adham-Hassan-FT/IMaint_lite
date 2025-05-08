@@ -20,12 +20,22 @@ import session from "express-session";
 import MemoryStore from "memorystore";
 import crypto from "crypto";
 
+// Extend the session interface to include userId
+declare module 'express-session' {
+  interface SessionData {
+    userId: number;
+  }
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   const MemoryStoreSession = MemoryStore(session);
   
+  // Generate a random session secret if not provided in environment
+  const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+  
   // Setup session middleware
   app.use(session({
-    secret: 'iMaintSecret',
+    secret: sessionSecret,
     resave: false,
     saveUninitialized: false,
     store: new MemoryStoreSession({
@@ -739,8 +749,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const partData = { 
         ...req.body, 
         workOrderId,
-        unitCost: inventoryItem.unitCost,
-        totalCost: inventoryItem.unitCost * quantity,
+        unitCost: inventoryItem.unitCost || 0,
+        totalCost: Number(inventoryItem.unitCost || 0) * quantity,
         dateIssued: new Date()
       };
       
