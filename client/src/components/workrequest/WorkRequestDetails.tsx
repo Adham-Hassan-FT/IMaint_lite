@@ -71,22 +71,41 @@ export default function WorkRequestDetails({
     }
   }, [refreshedWorkRequest]);
   
-  const formattedDateRequested = workRequest.dateRequested 
+  // Format dates for display
+  const formattedDateRequested = workRequest?.dateRequested 
     ? format(new Date(workRequest.dateRequested), 'MMM d, yyyy, h:mm a') 
     : 'N/A';
   
-  const formattedDateNeeded = workRequest.dateNeeded 
+  const formattedDateNeeded = workRequest?.dateNeeded 
     ? format(new Date(workRequest.dateNeeded), 'MMM d, yyyy') 
     : 'N/A';
 
   const viewWorkOrder = () => {
-    if (workRequest.convertedToWorkOrder) {
+    if (workRequest?.convertedToWorkOrder) {
       setLocation(`/work-orders/${workRequest.convertedToWorkOrder.id}`);
     }
   };
 
-  const handleConvert = (id: number) => {
-    onConvert(id);
+  const handleConvert = async (id: number) => {
+    if (!id) {
+      console.error("Cannot convert: Invalid work request ID");
+      return;
+    }
+    
+    try {
+      // Call the conversion API directly here instead of relying on the parent
+      await apiRequest("POST", `/api/work-requests/${id}/convert`, {});
+      
+      // Directly refetch the work request to update UI immediately
+      const response = await apiRequest("GET", `/api/work-requests/${id}/details`);
+      const updated = await response.json();
+      setWorkRequest(updated);
+      
+      // Still call the parent onConvert for any other side effects
+      onConvert(id);
+    } catch (error) {
+      console.error("Failed to convert work request:", error);
+    }
   };
 
   return (
@@ -108,13 +127,17 @@ export default function WorkRequestDetails({
                   <CardDescription>Request #{workRequest.requestNumber}</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Badge className={priorityColors[workRequest.priority] || ""}>
-                    {workRequest.priority.charAt(0).toUpperCase() + workRequest.priority.slice(1)} Priority
+                  <Badge className={priorityColors[workRequest?.priority || "medium"] || ""}>
+                    {workRequest?.priority 
+                      ? workRequest.priority.charAt(0).toUpperCase() + workRequest.priority.slice(1) 
+                      : "Medium"} Priority
                   </Badge>
-                  <Badge className={statusColors[workRequest.status] || ""}>
-                    {workRequest.status.charAt(0).toUpperCase() + workRequest.status.slice(1)}
+                  <Badge className={statusColors[workRequest?.status || "requested"] || ""}>
+                    {workRequest?.status 
+                      ? workRequest.status.charAt(0).toUpperCase() + workRequest.status.slice(1)
+                      : "Requested"}
                   </Badge>
-                  {workRequest.isConverted && (
+                  {workRequest?.isConverted && (
                     <Badge variant="outline" className="flex items-center gap-1">
                       <ArrowRightCircle className="h-3 w-3" />
                       Converted to Work Order
@@ -126,17 +149,17 @@ export default function WorkRequestDetails({
             <CardContent className="space-y-4">
               <div>
                 <h3 className="text-lg font-medium mb-2">Description</h3>
-                <p className="text-muted-foreground whitespace-pre-line">{workRequest.description}</p>
+                <p className="text-muted-foreground whitespace-pre-line">{workRequest?.description}</p>
               </div>
               
-              {workRequest.notes && (
+              {workRequest?.notes && (
                 <div>
                   <h3 className="text-lg font-medium mb-2">Additional Notes</h3>
                   <p className="text-muted-foreground whitespace-pre-line">{workRequest.notes}</p>
                 </div>
               )}
               
-              {workRequest.convertedToWorkOrder && (
+              {workRequest?.convertedToWorkOrder && (
                 <div className="bg-muted rounded-md p-4 mt-6">
                   <h3 className="text-lg font-medium mb-2 flex items-center gap-2">
                     <ArrowRightCircle className="h-5 w-5" />
@@ -149,9 +172,11 @@ export default function WorkRequestDetails({
                     </div>
                     <div>
                       <p className="text-sm text-muted-foreground">Status</p>
-                      <Badge className={statusColors[workRequest.convertedToWorkOrder.status] || ""}>
-                        {workRequest.convertedToWorkOrder.status.charAt(0).toUpperCase() + 
-                          workRequest.convertedToWorkOrder.status.slice(1)}
+                      <Badge className={statusColors[workRequest.convertedToWorkOrder.status || "requested"] || ""}>
+                        {workRequest.convertedToWorkOrder.status
+                          ? workRequest.convertedToWorkOrder.status.charAt(0).toUpperCase() + 
+                            workRequest.convertedToWorkOrder.status.slice(1)
+                          : "Requested"}
                       </Badge>
                     </div>
                   </div>
@@ -169,7 +194,7 @@ export default function WorkRequestDetails({
                 </div>
               )}
             </CardContent>
-            {!workRequest.isConverted && !workRequest.convertedToWorkOrder && (
+            {!workRequest?.isConverted && !workRequest?.convertedToWorkOrder && (
               <CardFooter>
                 <Button 
                   onClick={() => handleConvert(workRequest.id)} 

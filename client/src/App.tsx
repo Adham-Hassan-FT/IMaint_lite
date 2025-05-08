@@ -54,6 +54,7 @@ function Router() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/work-orders" component={WorkOrders} />
+        <Route path="/work-orders/:id" component={WorkOrders} />
         <Route path="/work-requests" component={WorkRequests} />
         <Route path="/assets" component={Assets} />
         <Route path="/inventory" component={Inventory} />

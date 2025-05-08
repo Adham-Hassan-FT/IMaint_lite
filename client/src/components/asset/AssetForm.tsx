@@ -37,6 +37,19 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 
+// Define types for our data
+interface AssetType {
+  id: number;
+  name: string;
+}
+
+interface Asset {
+  id: number;
+  assetNumber: string;
+  description: string;
+  [key: string]: any;
+}
+
 // Extend the schema with custom validation
 const formSchema = insertAssetSchema.extend({
   assetNumber: z.string().min(2, "Asset number must be at least 2 characters"),
@@ -44,6 +57,14 @@ const formSchema = insertAssetSchema.extend({
   installDate: z.date().optional(),
   warrantyExpiration: z.date().optional(),
   replacementCost: z.string().optional().transform(val => val ? parseFloat(val) : undefined),
+  status: z.string(),
+  typeId: z.number().optional(),
+  parentId: z.number().nullable().optional(),
+  location: z.string().optional(),
+  manufacturer: z.string().optional(),
+  model: z.string().optional(),
+  serialNumber: z.string().optional(),
+  barcode: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -60,12 +81,12 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
   const isEditing = !!editAsset;
   
   // Get asset types for selection
-  const { data: assetTypes, isLoading: isLoadingTypes } = useQuery({
+  const { data: assetTypes = [], isLoading: isLoadingTypes } = useQuery<AssetType[]>({
     queryKey: ['/api/asset-types'],
   });
 
   // Get parent assets for selection
-  const { data: assets, isLoading: isLoadingAssets } = useQuery({
+  const { data: assets = [], isLoading: isLoadingAssets } = useQuery<Asset[]>({
     queryKey: ['/api/assets'],
   });
 
@@ -103,7 +124,7 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
     manufacturer: "",
     model: "",
     serialNumber: "",
-  };
+  } as FormValues;
 
   // Create mutation for creating asset
   const createAssetMutation = useMutation({
@@ -174,7 +195,7 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
         warrantyExpiration: editAsset.warrantyExpiration ? new Date(editAsset.warrantyExpiration) : undefined,
         replacementCost: editAsset.replacementCost ? editAsset.replacementCost.toString() : "",
         barcode: editAsset.barcode || "",
-      });
+      } as FormValues);
     }
   }, [editAsset, isEditing, form]);
 
@@ -211,7 +232,7 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
                 <FormItem>
                   <FormLabel>Asset Number</FormLabel>
                   <FormControl>
-                    <Input placeholder="A-001" {...field} />
+                    <Input placeholder="A-001" {...field} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -225,7 +246,7 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
                 <FormItem>
                   <FormLabel>Description</FormLabel>
                   <FormControl>
-                    <Input placeholder="Asset description" {...field} />
+                    <Input placeholder="Asset description" {...field} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -241,7 +262,7 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
                     <FormLabel>Type</FormLabel>
                     <Select 
                       onValueChange={(value) => field.onChange(Number(value))} 
-                      value={field.value?.toString()}
+                      value={field.value?.toString() || undefined}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -252,7 +273,7 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
                         {isLoadingTypes ? (
                           <SelectItem value="loading" disabled>Loading...</SelectItem>
                         ) : (
-                          assetTypes?.map((type) => (
+                          assetTypes.map((type) => (
                             <SelectItem key={type.id} value={type.id.toString()}>
                               {type.name}
                             </SelectItem>
@@ -271,7 +292,7 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value as string}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select status" />
@@ -311,7 +332,7 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
                       {isLoadingAssets ? (
                         <SelectItem value="loading" disabled>Loading...</SelectItem>
                       ) : (
-                        assets?.filter(asset => asset.id !== editAsset?.id).map((asset) => (
+                        assets.filter(asset => asset.id !== editAsset?.id).map((asset) => (
                           <SelectItem key={asset.id} value={asset.id.toString()}>
                             {asset.assetNumber} - {asset.description}
                           </SelectItem>
@@ -331,7 +352,7 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
                 <FormItem>
                   <FormLabel>Location</FormLabel>
                   <FormControl>
-                    <Input placeholder="Building 1, Floor 2" {...field} />
+                    <Input placeholder="Building 1, Floor 2" {...field} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -346,7 +367,7 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
                   <FormItem>
                     <FormLabel>Manufacturer</FormLabel>
                     <FormControl>
-                      <Input placeholder="Manufacturer name" {...field} />
+                      <Input placeholder="Manufacturer name" {...field} value={field.value || ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -360,7 +381,7 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
                   <FormItem>
                     <FormLabel>Model</FormLabel>
                     <FormControl>
-                      <Input placeholder="Model number" {...field} />
+                      <Input placeholder="Model number" {...field} value={field.value || ''} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -375,7 +396,7 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
                 <FormItem>
                   <FormLabel>Serial Number</FormLabel>
                   <FormControl>
-                    <Input placeholder="Serial number" {...field} />
+                    <Input placeholder="Serial number" {...field} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -463,7 +484,7 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
                 <FormItem>
                   <FormLabel>Replacement Cost</FormLabel>
                   <FormControl>
-                    <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                    <Input type="number" step="0.01" placeholder="0.00" {...field} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -477,7 +498,7 @@ export default function AssetForm({ onClose, onSubmitSuccess, editAsset }: Asset
                 <FormItem>
                   <FormLabel>Barcode</FormLabel>
                   <FormControl>
-                    <Input placeholder="Asset barcode" {...field} />
+                    <Input placeholder="Asset barcode" {...field} value={field.value || ''} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

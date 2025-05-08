@@ -169,7 +169,9 @@ export default function InventoryDetails({ item, onClose }: InventoryDetailsProp
                     <span className="text-sm text-muted-foreground">Unit Cost:</span>
                   </div>
                   <p className="text-sm font-medium pl-6">
-                    ${refreshedItem.unitCost?.toFixed(2) || '0.00'}
+                    ${typeof refreshedItem.unitCost === 'number' 
+                      ? refreshedItem.unitCost.toFixed(2)
+                      : parseFloat(refreshedItem.unitCost || '0').toFixed(2)}
                   </p>
                 </div>
                 

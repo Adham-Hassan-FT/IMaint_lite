@@ -68,13 +68,25 @@ export default function WorkRequestList() {
     mutationFn: async (id: number) => {
       return await apiRequest("POST", `/api/work-requests/${id}/convert`, {});
     },
-    onSuccess: () => {
+    onSuccess: async (_, id) => {
       toast({
         title: "Converted to work order",
         description: "The work request has been converted to a work order successfully",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/work-requests/details'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/work-orders/details'] });
+      
+      // Explicitly invalidate the specific work request details query
+      await queryClient.invalidateQueries({ queryKey: [`/api/work-requests/${id}/details`] });
+      
+      // Refresh the overall lists
+      await queryClient.invalidateQueries({ queryKey: ['/api/work-requests/details'] });
+      await queryClient.invalidateQueries({ queryKey: ['/api/work-orders/details'] });
+      
+      // If the request is currently selected, refresh it directly
+      if (selectedRequest && selectedRequest.id === id) {
+        const response = await apiRequest("GET", `/api/work-requests/${id}/details`);
+        const updatedRequest = await response.json();
+        setSelectedRequest(updatedRequest);
+      }
     },
     onError: (error) => {
       toast({

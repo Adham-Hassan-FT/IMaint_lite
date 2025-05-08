@@ -19,6 +19,9 @@ import {
 import session from "express-session";
 import MemoryStore from "memorystore";
 import crypto from "crypto";
+import multer from "multer";
+import * as path from "path";
+import * as fs from "fs";
 
 // Extend the session interface to include userId
 declare module 'express-session' {
@@ -686,6 +689,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Include work order ID in the data
       const laborData = { ...req.body, workOrderId };
       
+      // Convert datePerformed string to Date if needed
+      if (laborData.datePerformed && typeof laborData.datePerformed === 'string') {
+        try {
+          laborData.datePerformed = new Date(laborData.datePerformed);
+        } catch (e) {
+          return res.status(400).json({ 
+            message: 'Validation error', 
+            errors: [{ path: ['datePerformed'], message: 'Invalid date format' }] 
+          });
+        }
+      }
+      
       const validatedData = insertWorkOrderLaborSchema.parse(laborData);
       const newLabor = await storage.createWorkOrderLabor(validatedData);
       
@@ -745,13 +760,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Get dateIssued from request or create new date
+      let dateIssued;
+      if (req.body.dateIssued && typeof req.body.dateIssued === 'string') {
+        try {
+          dateIssued = new Date(req.body.dateIssued);
+        } catch (e) {
+          return res.status(400).json({ 
+            message: 'Validation error', 
+            errors: [{ path: ['dateIssued'], message: 'Invalid date format' }] 
+          });
+        }
+      } else {
+        dateIssued = new Date();
+      }
+      
       // Include work order ID in the data
       const partData = { 
         ...req.body, 
         workOrderId,
         unitCost: inventoryItem.unitCost || 0,
         totalCost: Number(inventoryItem.unitCost || 0) * quantity,
-        dateIssued: new Date()
+        dateIssued: dateIssued
       };
       
       const validatedData = insertWorkOrderPartSchema.parse(partData);
@@ -1336,6 +1366,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Delete notification error:', error);
       res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  // Document Management routes - Fixed implementation
+  // Create uploads directory
+  const uploadsDir = path.join(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  
+  // Configure multer storage
+  const fileStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      try {
+        const { entityType, entityId } = req.params;
+        const dir = path.join(uploadsDir, entityType, entityId);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
+        cb(null, dir);
+      } catch (error) {
+        cb(error as Error, '');
+      }
+    },
+    filename: (req, file, cb) => {
+      try {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + '-' + file.originalname);
+      } catch (error) {
+        cb(error as Error, '');
+      }
+    }
+  });
+  
+  const fileUpload = multer({ storage: fileStorage });
+  
+  // Get documents for an entity
+  app.get('/api/documents/:entityType/:entityId', async (req, res) => {
+    try {
+      const { entityType, entityId } = req.params;
+      const docs = await storage.getDocuments(entityType, parseInt(entityId));
+      res.json(docs);
+    } catch (error) {
+      console.error('Get documents error:', error);
+      res.status(500).json({ message: 'Error retrieving documents' });
+    }
+  });
+  
+  // Upload document with multer
+  app.post('/api/documents/:entityType/:entityId/upload', (req, res) => {
+    // Use multer middleware for this specific route
+    fileUpload.single('file')(req, res, async (err) => {
+      if (err) {
+        console.error('Multer error:', err);
+        return res.status(500).json({ message: 'File upload failed', error: err.message });
+      }
+      
+      try {
+        // Get the file from the request (added by multer)
+        const file = req.file;
+        if (!file) {
+          return res.status(400).json({ message: 'No file uploaded' });
+        }
+        
+        const { entityType, entityId } = req.params;
+        
+        // Create document record in database
+        const document = {
+          filename: file.originalname,
+          filesize: file.size,
+          contentType: file.mimetype,
+          entityType,
+          entityId: parseInt(entityId),
+          filePath: file.path,
+          uploadDate: new Date()
+        };
+        
+        // Save document metadata to database
+        const savedDocument = await storage.createDocument(document);
+        
+        res.status(201).json({
+          id: savedDocument.id,
+          filename: savedDocument.filename,
+          filesize: savedDocument.filesize,
+          contentType: savedDocument.contentType,
+          entityType: savedDocument.entityType,
+          entityId: savedDocument.entityId,
+          uploadDate: savedDocument.uploadDate
+        });
+      } catch (error) {
+        console.error('Document creation error:', error);
+        res.status(500).json({ message: 'Error saving document metadata' });
+      }
+    });
+  });
+  
+  // Download document
+  app.get('/api/documents/:id/download', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const doc = await storage.getDocument(id);
+      
+      if (!doc || !doc.filePath) {
+        return res.status(404).json({ message: 'Document not found' });
+      }
+      
+      // Check if file exists
+      if (!fs.existsSync(doc.filePath)) {
+        return res.status(404).json({ message: 'Document file not found' });
+      }
+      
+      // Send file
+      res.download(doc.filePath, doc.filename);
+    } catch (error) {
+      console.error('Download document error:', error);
+      res.status(500).json({ message: 'Error retrieving document' });
+    }
+  });
+  
+  // Delete document
+  app.delete('/api/documents/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      // Get document before deletion to get the file path
+      const doc = await storage.getDocument(id);
+      
+      if (!doc) {
+        return res.status(404).json({ message: 'Document not found' });
+      }
+      
+      // Delete document record from database
+      await storage.deleteDocument(id);
+      
+      // Delete file if exists and has a path
+      if (doc.filePath && fs.existsSync(doc.filePath)) {
+        fs.unlinkSync(doc.filePath);
+      }
+      
+      res.json({ message: 'Document deleted successfully' });
+    } catch (error) {
+      console.error('Delete document error:', error);
+      res.status(500).json({ message: 'Error deleting document' });
     }
   });
 

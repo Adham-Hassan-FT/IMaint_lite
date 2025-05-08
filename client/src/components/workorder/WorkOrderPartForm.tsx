@@ -32,9 +32,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { format } from "date-fns";
 
-// Extend the schema with custom validation
-const formSchema = insertWorkOrderPartSchema.extend({
+// Custom schema for form validation
+const formSchema = z.object({
+  workOrderId: z.number(),
+  inventoryItemId: z.number({
+    required_error: "Please select an inventory item",
+  }),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
 });
 
@@ -62,7 +67,56 @@ export default function WorkOrderPartForm({
   // Create mutation for adding part
   const createPartMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      await apiRequest("POST", `/api/work-orders/${workOrderId}/parts`, data);
+      // Get the selected inventory item details
+      const selectedItem = inventoryItems.find(item => item.id === data.inventoryItemId);
+      
+      let unitCostNum;
+      if (selectedItem?.unitCost) {
+        unitCostNum = typeof selectedItem.unitCost === 'string' 
+          ? parseFloat(selectedItem.unitCost) 
+          : selectedItem.unitCost;
+      }
+      
+      const payload: any = {
+        workOrderId: data.workOrderId,
+        inventoryItemId: data.inventoryItemId,
+        quantity: data.quantity, // Send as number, as per form schema z.coerce.number()
+        dateIssued: new Date().toISOString(),
+      };
+
+      if (unitCostNum !== undefined && !isNaN(unitCostNum)) {
+        // Ensure stringification of values
+        payload.unitCost = String(unitCostNum.toFixed(2));
+        const totalCostValue = unitCostNum * data.quantity;
+        payload.totalCost = String(totalCostValue.toFixed(2));
+      }
+      
+      const response = await fetch(`/api/work-orders/${workOrderId}/parts`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const text = await response.text();
+        let errorMessage = `${response.status}: ${text}`;
+        try {
+          const errorData = JSON.parse(text);
+          if (errorData.message && errorData.errors && Array.isArray(errorData.errors)) {
+            errorMessage = `${response.status}: ${errorData.message} - ${errorData.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`).join('; ')}`;
+          } else if (errorData.message) {
+            errorMessage = `${response.status}: ${errorData.message}`;
+          }
+        } catch (e) {
+          // Fallback to original error message if parsing fails
+        }
+        throw new Error(errorMessage);
+      }
+      
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/work-orders/details'] });

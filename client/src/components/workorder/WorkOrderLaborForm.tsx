@@ -39,10 +39,17 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-// Create a modified schema for the form
-const formSchema = insertWorkOrderLaborSchema.extend({
-  datePerformed: z.date(),
+// Create a custom schema for form validation
+const formSchema = z.object({
+  userId: z.number({
+    required_error: "Please select a technician",
+  }),
+  workOrderId: z.number(),
   hours: z.coerce.number().min(0.1, "Hours must be at least 0.1"),
+  notes: z.string().optional(),
+  datePerformed: z.date({
+    required_error: "Please select a date",
+  }),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -69,7 +76,45 @@ export default function WorkOrderLaborForm({
   // Create mutation for adding labor
   const createLaborMutation = useMutation({
     mutationFn: async (data: FormValues) => {
-      await apiRequest("POST", `/api/work-orders/${workOrderId}/labor`, data);
+      // Convert the data to the format expected by the server
+      const payload = {
+        workOrderId: data.workOrderId,
+        userId: data.userId,
+        hours: data.hours.toString(),
+        notes: data.notes || "",
+        // Send raw Date object; JSON.stringify will convert to ISO 8601 string
+        datePerformed: data.datePerformed, 
+      };
+
+      // Use JSON format with correct content type
+      const response = await fetch(`/api/work-orders/${workOrderId}/labor`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        credentials: 'include',
+      });
+      
+      if (!response.ok) {
+        const text = await response.text();
+        let errorMessage = `${response.status}: ${text}`;
+        try {
+          const errorData = JSON.parse(text);
+          if (errorData.message && errorData.errors && Array.isArray(errorData.errors)) {
+            errorMessage = `${response.status}: ${errorData.message} - ${errorData.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`).join('; ')}`;
+          } else if (errorData.errors && Array.isArray(errorData.errors)) { // Fallback for original error format
+             errorMessage = `${response.status}: ${errorData.message || 'Validation error'} - ${errorData.errors.map((e: any) => e.message).join(', ')}`;
+          } else if (errorData.message) {
+            errorMessage = `${response.status}: ${errorData.message}`;
+          }
+        } catch (e) {
+          // Fallback to original error message if parsing fails
+        }
+        throw new Error(errorMessage);
+      }
+      
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/work-orders/details'] });

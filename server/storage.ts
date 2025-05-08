@@ -17,6 +17,20 @@ import {
 } from "@shared/schema";
 import crypto from "crypto";
 
+// Define document types
+export interface Document {
+  id: number;
+  filename: string;
+  filesize: number;
+  contentType: string;
+  entityType: string;
+  entityId: number;
+  filePath: string;
+  uploadDate: Date;
+}
+
+export type InsertDocument = Omit<Document, 'id'>;
+
 // Interface for all storage operations
 export interface IStorage {
   // Users
@@ -112,6 +126,12 @@ export interface IStorage {
   markAllNotificationsAsRead(userId: number): Promise<void>;
   countUnreadNotifications(userId: number): Promise<number>;
   deleteNotification(id: number): Promise<boolean>;
+  
+  // Documents
+  getDocument(id: number): Promise<Document | undefined>;
+  getDocuments(entityType: string, entityId: number): Promise<Document[]>;
+  createDocument(document: InsertDocument): Promise<Document>;
+  deleteDocument(id: number): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -130,6 +150,7 @@ export class MemStorage implements IStorage {
   private pmTechnicians: Map<number, PmTechnician> = new Map();
   private pmWorkOrders: Map<number, PmWorkOrder> = new Map();
   private notifications: Map<number, Notification> = new Map();
+  private documents: Map<number, Document> = new Map();
 
   private currentIds: {
     users: number;
@@ -146,6 +167,7 @@ export class MemStorage implements IStorage {
     pmTechnicians: number;
     pmWorkOrders: number;
     notifications: number;
+    documents: number;
   };
 
   constructor() {
@@ -163,7 +185,8 @@ export class MemStorage implements IStorage {
       preventiveMaintenance: 1,
       pmTechnicians: 1,
       pmWorkOrders: 1,
-      notifications: 1
+      notifications: 1,
+      documents: 1
     };
 
     // Seed initial data
@@ -1094,6 +1117,30 @@ export class MemStorage implements IStorage {
 
   async deleteNotification(id: number): Promise<boolean> {
     return this.notifications.delete(id);
+  }
+
+  // Document Management
+  async getDocument(id: number): Promise<Document | undefined> {
+    return this.documents.get(id);
+  }
+
+  async getDocuments(entityType: string, entityId: number): Promise<Document[]> {
+    return Array.from(this.documents.values())
+      .filter(doc => doc.entityType === entityType && doc.entityId === entityId);
+  }
+
+  async createDocument(document: InsertDocument): Promise<Document> {
+    const id = this.currentIds.documents++;
+    const newDocument: Document = {
+      ...document,
+      id
+    };
+    this.documents.set(id, newDocument);
+    return newDocument;
+  }
+
+  async deleteDocument(id: number): Promise<boolean> {
+    return this.documents.delete(id);
   }
 }
 
