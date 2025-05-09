@@ -2,12 +2,6 @@ import { db, schema } from './db';
 import crypto from 'crypto';
 import { DbStorage } from './dbStorage';
 
-// Check if we're in Vercel or production environment
-const isVercel = process.env.VERCEL === '1' || !!process.env.VERCEL_ENV || process.cwd().includes('/vercel/');
-const isProd = isVercel || process.env.NODE_ENV?.toLowerCase() === 'production';
-
-console.log(`Seed Database - Environment: ${isProd ? 'Production' : 'Development'} (isVercel: ${isVercel})`);
-
 // Hash password function
 const hashPassword = (password: string): string => {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -22,12 +16,6 @@ const addDays = (date: Date, days: number): Date => {
 
 // Main seed function
 export async function seedDatabase() {
-  // Skip seeding in production
-  if (isProd) {
-    console.log('Database seeding skipped in production environment');
-    return;
-  }
-  
   console.log('Starting database seeding...');
   const storage = new DbStorage();
   
