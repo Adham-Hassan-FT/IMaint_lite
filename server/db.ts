@@ -7,7 +7,7 @@ const isProd = process.env.NODE_ENV?.toLowerCase() === 'production';
 
 // Read database URL from .env file if it exists
 let databaseUrl = "";
-try {
+try { 
   // Check if .env file exists and read it
   const envPath = path.resolve(process.cwd(), '.env');
   if (fs.existsSync(envPath)) {
