@@ -77,12 +77,12 @@ Please refer to these documents for a comprehensive understanding of the project
 IMaint Lite is built using a modern technology stack:
 
 - **Frontend**:
-  - React with TypeScript
-  - TailwindCSS for styling
-  - shadcn/ui component library
+  - React Native with TypeScript for cross-platform mobile development
+  - TailwindCSS for styling with React Native support
+  - Custom UI component library based on shadcn/ui principles
   - React Query for data fetching
   - React Hook Form for form handling
-  - Wouter for routing
+  - React Navigation for routing and navigation
 
 - **Backend**:
   - Node.js with Express
@@ -104,6 +104,7 @@ IMaint Lite is built using a modern technology stack:
 - Node.js (v16 or later)
 - npm (v7 or later)
 - PostgreSQL database
+- React Native development environment (Android Studio and/or Xcode)
 
 ### Installation
 
@@ -136,7 +137,10 @@ IMaint Lite is built using a modern technology stack:
    npm run dev
    ```
 
-6. Access the application at `http://localhost:5000`
+6. Run the React Native application:
+   ```
+   npm run mobile
+   ```
 
 ### Default Login Credentials
 
@@ -187,10 +191,11 @@ IMaint Lite is built using a modern technology stack:
 
 ### Project Structure
 
-- `/client` - Frontend React application
+- `/mobile` - React Native application
   - `/src/components` - UI components
-  - `/src/pages` - Page components
+  - `/src/screens` - Screen components
   - `/src/hooks` - Custom React hooks
+  - `/src/navigation` - Navigation configuration
   - `/src/lib` - Utility functions
 
 - `/server` - Backend Express application
@@ -198,7 +203,7 @@ IMaint Lite is built using a modern technology stack:
   - `/storage.ts` - Data storage implementation
   - `/index.ts` - Main entry point
 
-- `/shared` - Shared code between client and server
+- `/shared` - Shared code between mobile app and server
   - `/schema.ts` - Database schema and types
 
 ### Commands
@@ -207,6 +212,9 @@ IMaint Lite is built using a modern technology stack:
 - `npm run build` - Build for production
 - `npm start` - Run production build
 - `npm run db:push` - Push schema changes to database
+- `npm run mobile` - Start the React Native application
+- `npm run android` - Run on Android device/emulator
+- `npm run ios` - Run on iOS simulator
 
 ## Troubleshooting
 
@@ -215,6 +223,7 @@ IMaint Lite is built using a modern technology stack:
 - **Database Connection Issues**: Verify your PostgreSQL credentials and ensure the database is running.
 - **Missing Dependencies**: Run `npm install` to ensure all dependencies are installed.
 - **Port Conflicts**: If port 5000 is in use, update the PORT value in your .env file.
+- **React Native Setup**: Ensure your development environment is properly set up for React Native development.
 
 ## License
 
@@ -222,6 +231,6 @@ IMaint Lite is built using a modern technology stack:
 
 ## Acknowledgements
 
-- Built with [shadcn/ui](https://ui.shadcn.com/) components
-- Icons from [Lucide](https://lucide.dev/)
-- Date handling with [date-fns](https://date-fns.org/)
+- Built with React Native
+- Icons from React Native Vector Icons
+- Date handling with date-fns
