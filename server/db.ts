@@ -3,7 +3,7 @@ import fs from 'fs';
 import path from 'path';
 
 // Determine environment
-const isProd = process.env.NODE_ENV === 'production';
+const isProd = process.env.NODE_ENV === 'Production';
 
 // Read database URL from .env file if it exists
 let databaseUrl = "";
