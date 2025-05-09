@@ -6,6 +6,17 @@ IMaint Lite is a comprehensive maintenance management system designed to streaml
 
 ![IMaint Lite Dashboard](./attached_assets/imaint-lite-screenshot.png)
 
+## Additional Documentation
+
+This project includes several in-depth documentation files:
+
+- **[PROJECT_DOCUMENT_C014.md](./PROJECT_DOCUMENT_C014.md)** - Overview of the problem addressed, solution architecture, and implementation impact
+- **[FEATURES_AND_ACHIEVEMENTS_C014.md](./FEATURES_AND_ACHIEVEMENTS_C014.md)** - Detailed description of implemented features and technical achievements
+- **[TECHNICAL_GUIDE_C014.md](./TECHNICAL_GUIDE_C014.md)** - Technical documentation for setup, deployment, and development 
+- **[POTENTIAL_IMPROVEMENTS_C014.md](./POTENTIAL_IMPROVEMENTS_C014.md)** - Future enhancement roadmap including entity deletion, pagination, and code organization
+
+Please refer to these documents for a comprehensive understanding of the project's scope, implementation details, and future directions.
+
 ## Features
 
 ### Core Functionality
