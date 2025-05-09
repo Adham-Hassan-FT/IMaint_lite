@@ -193,6 +193,93 @@ export class MemStorage implements IStorage {
     this.seedData();
   }
 
+  // Getter methods for persistence
+  protected getUsersMap(): Map<number, User> {
+    return this.users;
+  }
+  
+  protected getAssetTypesMap(): Map<number, AssetType> {
+    return this.assetTypes;
+  }
+  
+  protected getAssetsMap(): Map<number, Asset> {
+    return this.assets;
+  }
+  
+  protected getInventoryCategoriesMap(): Map<number, InventoryCategory> {
+    return this.inventoryCategories;
+  }
+  
+  protected getInventoryItemsMap(): Map<number, InventoryItem> {
+    return this.inventoryItems;
+  }
+  
+  protected getWorkOrderTypesMap(): Map<number, WorkOrderType> {
+    return this.workOrderTypes;
+  }
+  
+  protected getWorkOrdersMap(): Map<number, WorkOrder> {
+    return this.workOrders;
+  }
+  
+  protected getWorkOrderLaborMap(): Map<number, WorkOrderLabor> {
+    return this.workOrderLabor;
+  }
+  
+  protected getWorkOrderPartsMap(): Map<number, WorkOrderPart> {
+    return this.workOrderParts;
+  }
+  
+  protected getWorkRequestsMap(): Map<number, WorkRequest> {
+    return this.workRequests;
+  }
+  
+  protected getPreventiveMaintenanceMap(): Map<number, PreventiveMaintenance> {
+    return this.preventiveMaintenance;
+  }
+  
+  protected getPmTechniciansMap(): Map<number, PmTechnician> {
+    return this.pmTechnicians;
+  }
+  
+  protected getPmWorkOrdersMap(): Map<number, PmWorkOrder> {
+    return this.pmWorkOrders;
+  }
+  
+  protected getNotificationsMap(): Map<number, Notification> {
+    return this.notifications;
+  }
+  
+  protected getDocumentsMap(): Map<number, Document> {
+    return this.documents;
+  }
+  
+  protected getCurrentIdsData(): typeof this.currentIds {
+    return this.currentIds;
+  }
+  
+  // Method to load data into storage (for persistence)
+  protected loadDataFromBackup(data: any): void {
+    if (data.users) this.users = new Map(data.users.map((item: User) => [item.id, item]));
+    if (data.assetTypes) this.assetTypes = new Map(data.assetTypes.map((item: AssetType) => [item.id, item]));
+    if (data.assets) this.assets = new Map(data.assets.map((item: Asset) => [item.id, item]));
+    if (data.inventoryCategories) this.inventoryCategories = new Map(data.inventoryCategories.map((item: InventoryCategory) => [item.id, item]));
+    if (data.inventoryItems) this.inventoryItems = new Map(data.inventoryItems.map((item: InventoryItem) => [item.id, item]));
+    if (data.workOrderTypes) this.workOrderTypes = new Map(data.workOrderTypes.map((item: WorkOrderType) => [item.id, item]));
+    if (data.workOrders) this.workOrders = new Map(data.workOrders.map((item: WorkOrder) => [item.id, item]));
+    if (data.workOrderLabor) this.workOrderLabor = new Map(data.workOrderLabor.map((item: WorkOrderLabor) => [item.id, item]));
+    if (data.workOrderParts) this.workOrderParts = new Map(data.workOrderParts.map((item: WorkOrderPart) => [item.id, item]));
+    if (data.workRequests) this.workRequests = new Map(data.workRequests.map((item: WorkRequest) => [item.id, item]));
+    if (data.preventiveMaintenance) this.preventiveMaintenance = new Map(data.preventiveMaintenance.map((item: PreventiveMaintenance) => [item.id, item]));
+    if (data.pmTechnicians) this.pmTechnicians = new Map(data.pmTechnicians.map((item: PmTechnician) => [item.id, item]));
+    if (data.pmWorkOrders) this.pmWorkOrders = new Map(data.pmWorkOrders.map((item: PmWorkOrder) => [item.id, item]));
+    if (data.notifications) this.notifications = new Map(data.notifications.map((item: Notification) => [item.id, item]));
+    if (data.documents) this.documents = new Map(data.documents.map((item: Document) => [item.id, item]));
+    
+    // Load currentIds
+    if (data.currentIds) this.currentIds = data.currentIds;
+  }
+
   // Helper method to seed initial data
   private seedData() {
     // Create admin user
@@ -629,7 +716,23 @@ export class MemStorage implements IStorage {
     const workOrder = await this.getWorkOrder(id);
     if (!workOrder) return undefined;
 
-    const asset = workOrder.assetId ? await this.getAsset(workOrder.assetId) : undefined;
+    console.log(`WorkOrder ${id} has assetId:`, workOrder.assetId);
+    
+    // For debugging - list all assets
+    const allAssets = await this.listAssets();
+    console.log(`Available assets:`, allAssets.map(a => ({ id: a.id, assetNumber: a.assetNumber })));
+    
+    let asset = undefined;
+    if (workOrder.assetId) {
+      asset = await this.getAsset(workOrder.assetId);
+      console.log(`Retrieved asset for WorkOrder ${id}:`, asset);
+      
+      // If asset still not found but assetId exists, it might be a data inconsistency
+      if (!asset) {
+        console.warn(`Asset with ID ${workOrder.assetId} not found but referenced in work order ${id}`);
+      }
+    }
+    
     const requestedBy = workOrder.requestedById ? await this.getUser(workOrder.requestedById) : undefined;
     const assignedTo = workOrder.assignedToId ? await this.getUser(workOrder.assignedToId) : undefined;
     const type = workOrder.typeId ? await this.getWorkOrderType(workOrder.typeId) : undefined;
@@ -648,7 +751,7 @@ export class MemStorage implements IStorage {
         })
     );
 
-    return {
+    const workOrderDetails: WorkOrderWithDetails = {
       ...workOrder,
       asset,
       requestedBy,
@@ -657,6 +760,14 @@ export class MemStorage implements IStorage {
       laborEntries,
       parts
     };
+    
+    console.log(`Final work order details for ${id}:`, JSON.stringify({
+      id: workOrderDetails.id,
+      assetId: workOrderDetails.assetId,
+      asset: workOrderDetails.asset
+    }));
+    
+    return workOrderDetails;
   }
 
   async listWorkOrders(): Promise<WorkOrder[]> {

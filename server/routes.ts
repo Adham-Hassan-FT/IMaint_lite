@@ -1,6 +1,6 @@
 import express, { type Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage, initializeStorage } from "./storageProvider";
 import { z } from "zod";
 import {
   insertUserSchema, InsertUser,
@@ -19,36 +19,50 @@ import {
 import session from "express-session";
 import MemoryStore from "memorystore";
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import multer from "multer";
 import * as path from "path";
 import * as fs from "fs";
+import cors from "cors";
 
 // Extend the session interface to include userId
 declare module 'express-session' {
   interface SessionData {
-    userId: number;
+    userId?: number;
+    username?: string;
+    role?: string;
   }
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  const MemoryStoreSession = MemoryStore(session);
+  const memoryStore = MemoryStore(session);
+  const sessionSecret = process.env.SESSION_SECRET || 'imaint-default-secret';
   
-  // Generate a random session secret if not provided in environment
-  const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+  // Initialize database storage first
+  await initializeStorage();
+  console.log('Storage initialization complete');
   
-  // Setup session middleware
-  app.use(session({
-    secret: sessionSecret,
-    resave: false,
-    saveUninitialized: false,
-    store: new MemoryStoreSession({
-      checkPeriod: 86400000 // prune expired entries every 24h
-    }),
-    cookie: { 
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    }
+  // Middleware
+  app.use(cors({
+    origin: "http://localhost:3000",
+    credentials: true
   }));
+  app.use(express.json());
+  app.use(
+    session({
+      store: new memoryStore({
+        checkPeriod: 86400000 // prune expired entries every 24h
+      }),
+      secret: sessionSecret,
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        secure: false,
+        httpOnly: true,
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      },
+    })
+  );
 
   // Authentication middleware
   const authenticate = (req: Request, res: Response, next: Function) => {
@@ -442,6 +456,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/inventory-items', authenticate, async (req, res) => {
     try {
+      // Handle empty unitCost string by converting it to "0.00"
+      if (req.body.unitCost === "") {
+        req.body.unitCost = "0.00";
+      }
+      
       const validatedData = insertInventoryItemSchema.parse(req.body);
       const newItem = await storage.createInventoryItem(validatedData);
       res.status(201).json(newItem);
@@ -454,11 +473,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add a diagnostic endpoint
+  app.post('/api/diagnostic/inventory-item', async (req, res) => {
+    try {
+      console.log('Diagnostic endpoint called with data:', req.body);
+      
+      // Handle empty unitCost string by converting it to "0.00"
+      const data = { ...req.body };
+      if (data.unitCost === "") {
+        data.unitCost = "0.00";
+        console.log('Converted empty unitCost to "0.00"');
+      }
+      
+      // Log the validation schema
+      console.log('Schema used for validation:', insertInventoryItemSchema);
+      
+      // Try validation
+      try {
+        console.log('Validating data with schema...');
+        const validatedData = insertInventoryItemSchema.parse(data);
+        console.log('Data validation successful:', validatedData);
+      } catch (error) {
+        console.error('Validation failed:', error);
+        return res.status(400).json({ message: 'Validation error', errors: error });
+      }
+      
+      // Try database creation
+      try {
+        console.log('Creating inventory item in database...');
+        const newItem = await storage.createInventoryItem(data);
+        console.log('Item created successfully:', newItem);
+        res.status(201).json(newItem);
+      } catch (error) {
+        console.error('Database error:', error);
+        res.status(500).json({ message: 'Database error', error: String(error) });
+      }
+    } catch (error) {
+      console.error('Diagnostic endpoint error:', error);
+      res.status(500).json({ message: 'Internal server error', error: String(error) });
+    }
+  });
+
   app.put('/api/inventory-items/:id', authenticate, async (req, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ message: 'Invalid inventory item ID' });
+      }
+      
+      // Handle empty unitCost string by converting it to "0.00"
+      if (req.body.unitCost === "") {
+        req.body.unitCost = "0.00";
       }
       
       // Validate only the fields that are present
@@ -519,6 +584,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/work-orders/details', async (req, res) => {
     try {
       const workOrders = await storage.listWorkOrdersWithDetails();
+      
+      // Make sure assets are properly loaded for all work orders
+      for (const workOrder of workOrders) {
+        if (workOrder.assetId && !workOrder.asset) {
+          console.log(`Asset missing for work order ${workOrder.id} with assetId ${workOrder.assetId}, fetching it directly`);
+          const asset = await storage.getAsset(workOrder.assetId);
+          if (asset) {
+            workOrder.asset = asset;
+          }
+        }
+      }
+      
       res.json(workOrders);
     } catch (error) {
       console.error('List work orders with details error:', error);
@@ -557,6 +634,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!workOrder) {
         return res.status(404).json({ message: 'Work order not found' });
+      }
+      
+      // Make sure the asset information is always available if assetId exists
+      if (workOrder.assetId && !workOrder.asset) {
+        console.log(`Asset missing for work order ${id} with assetId ${workOrder.assetId}, fetching it directly`);
+        const asset = await storage.getAsset(workOrder.assetId);
+        if (asset) {
+          workOrder.asset = asset;
+        }
       }
       
       res.json(workOrder);

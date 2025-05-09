@@ -40,7 +40,7 @@ const formSchema = insertInventoryItemSchema.extend({
   partNumber: z.string().min(2, "Part number must be at least 2 characters"),
   name: z.string().min(2, "Name must be at least 2 characters"),
   description: z.string().optional(),
-  unitCost: z.string().optional(),
+  unitCost: z.string().optional().transform(val => val === "" ? "0.00" : val),
   quantityInStock: z.string().transform(val => parseInt(val) || 0),
   reorderPoint: z.string().optional().transform(val => val ? parseInt(val) : undefined),
 });
@@ -129,10 +129,16 @@ export default function InventoryForm({ onClose, onSubmitSuccess, editItem }: In
   const onSubmit = async (data: FormValues) => {
     setIsSubmitting(true);
     try {
+      // Make sure unitCost is a proper string before sending to API
+      const formattedData = {
+        ...data,
+        unitCost: data.unitCost === "" ? "0.00" : data.unitCost
+      };
+      
       if (isEditing) {
-        await updateInventoryItemMutation.mutateAsync(data);
+        await updateInventoryItemMutation.mutateAsync(formattedData);
       } else {
-        await createInventoryItemMutation.mutateAsync(data);
+        await createInventoryItemMutation.mutateAsync(formattedData);
       }
     } finally {
       setIsSubmitting(false);
@@ -240,9 +246,15 @@ export default function InventoryForm({ onClose, onSubmitSuccess, editItem }: In
                         step="0.01" 
                         placeholder="0.00" 
                         {...field} 
-                        onChange={(e) => field.onChange(e.target.value)}
+                        onChange={(e) => {
+                          // Ensure we're passing a string value, not a number
+                          field.onChange(e.target.value.toString());
+                        }}
                       />
                     </FormControl>
+                    <FormDescription>
+                      Enter the unit cost as a decimal value (e.g., "10.50")
+                    </FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

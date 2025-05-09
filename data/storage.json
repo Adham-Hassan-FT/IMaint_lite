@@ -1,0 +1,294 @@
+{
+  "users": [
+    {
+      "username": "admin",
+      "password": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+      "fullName": "Admin User",
+      "email": "admin@imaint.com",
+      "role": "admin",
+      "isActive": true,
+      "id": 1
+    },
+    {
+      "username": "tech",
+      "password": "3ac40463b419a7de590185c7121f0bfbe411d6168699e8014f521b050b1d6653",
+      "fullName": "Technician User",
+      "email": "tech@imaint.com",
+      "role": "technician",
+      "isActive": true,
+      "id": 2
+    },
+    {
+      "username": "manager",
+      "password": "866485796cfa8d7c0cf7111640205b83076433547577511d81f8030ae99ecea5",
+      "fullName": "Manager User",
+      "email": "manager@imaint.com",
+      "role": "manager",
+      "isActive": true,
+      "id": 3
+    },
+    {
+      "username": "requester",
+      "password": "ffe69b6b40565d95264b872fe4cf6c0ca0aa856f03df6f81ad912ac73775fbe0",
+      "fullName": "Requester User",
+      "email": "requester@imaint.com",
+      "role": "requester",
+      "isActive": true,
+      "id": 4
+    }
+  ],
+  "assetTypes": [
+    {
+      "name": "Machine",
+      "description": "Production machinery and equipment",
+      "id": 1
+    },
+    {
+      "name": "Vehicle",
+      "description": "Company vehicles and transportation equipment",
+      "id": 2
+    },
+    {
+      "name": "Facility",
+      "description": "Buildings and facilities",
+      "id": 3
+    }
+  ],
+  "assets": [
+    {
+      "assetNumber": "A-001",
+      "description": "Production Line A",
+      "status": "operational",
+      "location": "Main Plant - Floor 1",
+      "manufacturer": "Industrial Systems Inc.",
+      "model": "PL2000",
+      "serialNumber": "PL2000-123456",
+      "barcode": "A001-BARCODE",
+      "id": 1
+    },
+    {
+      "assetNumber": "A-002",
+      "description": "Delivery Truck",
+      "status": "operational",
+      "location": "Garage",
+      "manufacturer": "Truck Co.",
+      "model": "Delivery 5000",
+      "serialNumber": "TR5000-789012",
+      "barcode": "A002-BARCODE",
+      "id": 2
+    },
+    {
+      "assetNumber": "A-003",
+      "description": "Main Office Building",
+      "status": "operational",
+      "location": "123 Main Street",
+      "barcode": "A003-BARCODE",
+      "id": 3
+    },
+    {
+      "assetNumber": "test asset",
+      "description": "asasd",
+      "typeId": 1,
+      "status": "operational",
+      "location": "",
+      "manufacturer": "",
+      "model": "",
+      "serialNumber": "",
+      "id": 4
+    }
+  ],
+  "inventoryCategories": [
+    {
+      "name": "Electrical",
+      "description": "Electrical components and supplies",
+      "id": 1
+    },
+    {
+      "name": "Mechanical",
+      "description": "Mechanical parts and components",
+      "id": 2
+    },
+    {
+      "name": "Consumables",
+      "description": "Consumable supplies",
+      "id": 3
+    }
+  ],
+  "inventoryItems": [
+    {
+      "partNumber": "P-001",
+      "name": "Electric Motor",
+      "description": "10HP Electric Motor",
+      "unitCost": 450,
+      "quantityInStock": 5,
+      "reorderPoint": 2,
+      "location": "Warehouse A - Shelf 1",
+      "barcode": "P001-BARCODE",
+      "id": 1
+    },
+    {
+      "partNumber": "P-002",
+      "name": "Drive Belt",
+      "description": "Industrial Drive Belt",
+      "unitCost": 75,
+      "quantityInStock": 12,
+      "reorderPoint": 5,
+      "location": "Warehouse A - Shelf 2",
+      "barcode": "P002-BARCODE",
+      "id": 2
+    },
+    {
+      "partNumber": "P-003",
+      "name": "Lubricant",
+      "description": "Industrial Lubricant 1L",
+      "unitCost": 25,
+      "quantityInStock": 20,
+      "reorderPoint": 10,
+      "location": "Warehouse B - Shelf 3",
+      "barcode": "P003-BARCODE",
+      "id": 3
+    }
+  ],
+  "workOrderTypes": [
+    {
+      "name": "Preventive",
+      "description": "Scheduled preventive maintenance",
+      "id": 1
+    },
+    {
+      "name": "Corrective",
+      "description": "Repairs and corrections for failures",
+      "id": 2
+    },
+    {
+      "name": "Project",
+      "description": "Installation or modification projects",
+      "id": 3
+    }
+  ],
+  "workOrders": [
+    {
+      "workOrderNumber": "WO-001",
+      "title": "Scheduled Maintenance",
+      "description": "Perform scheduled preventive maintenance on Production Line A",
+      "priority": "medium",
+      "status": "scheduled",
+      "requestedById": 1,
+      "assignedToId": 2,
+      "dateRequested": "2025-05-09T11:22:53.837Z",
+      "dateNeeded": "2025-05-16T11:22:53.837Z",
+      "dateScheduled": "2025-05-14T11:22:53.837Z",
+      "estimatedHours": 4,
+      "estimatedCost": 300,
+      "id": 1
+    },
+    {
+      "workOrderNumber": "WO-5223",
+      "title": "asdasd",
+      "description": "sdfsdfsdf",
+      "typeId": 1,
+      "assetId": 1,
+      "priority": "medium",
+      "status": "requested",
+      "requestedById": 1,
+      "dateRequested": "2025-05-09T11:26:02.646Z",
+      "id": 2
+    }
+  ],
+  "workOrderLabor": [
+    {
+      "userId": 2,
+      "hours": 2,
+      "laborCost": 120,
+      "datePerformed": "2025-05-08T11:22:53.837Z",
+      "notes": "Initial inspection completed",
+      "id": 1
+    },
+    {
+      "workOrderId": 1,
+      "userId": 2,
+      "hours": "1",
+      "datePerformed": "2025-05-09T11:24:35.374Z",
+      "notes": "",
+      "id": 2
+    }
+  ],
+  "workOrderParts": [
+    {
+      "quantity": 1,
+      "dateIssued": "2025-05-09T11:22:53.837Z",
+      "id": 1
+    },
+    {
+      "workOrderId": 1,
+      "inventoryItemId": 1,
+      "quantity": 1,
+      "unitCost": "450",
+      "totalCost": "450",
+      "dateIssued": "2025-05-09T11:24:33.018Z",
+      "id": 2
+    }
+  ],
+  "workRequests": [
+    {
+      "requestNumber": "WR-001",
+      "title": "HVAC Not Working",
+      "description": "The HVAC system in the main office is not cooling properly",
+      "priority": "high",
+      "requestedById": 4,
+      "dateRequested": "2025-05-09T11:22:53.837Z",
+      "dateNeeded": "2025-05-11T11:22:53.837Z",
+      "location": "Main Office - 2nd Floor",
+      "notes": "Temperature is reaching 85°F in the afternoon",
+      "id": 1,
+      "status": "requested",
+      "isConverted": false,
+      "convertedToWorkOrderId": null
+    }
+  ],
+  "preventiveMaintenance": [
+    {
+      "title": "Monthly Production Line Inspection",
+      "description": "Regular monthly inspection of all production line components",
+      "assetId": null,
+      "maintenanceType": "inspection",
+      "priority": "medium",
+      "startDate": "2025-05-23T11:22:53.837Z",
+      "duration": 2,
+      "createdById": 3,
+      "isRecurring": true,
+      "recurringPeriod": "monthly",
+      "occurrences": 12,
+      "notes": "Check all belts, motors, and safety systems",
+      "id": 1,
+      "isActive": true,
+      "dateCreated": "2025-05-09T11:22:53.837Z"
+    }
+  ],
+  "pmTechnicians": [
+    {
+      "id": 1,
+      "technicianId": 2
+    }
+  ],
+  "pmWorkOrders": [],
+  "notifications": [],
+  "documents": [],
+  "currentIds": {
+    "users": 5,
+    "assetTypes": 4,
+    "assets": 5,
+    "inventoryCategories": 4,
+    "inventoryItems": 4,
+    "workOrderTypes": 4,
+    "workOrders": 3,
+    "workOrderLabor": 3,
+    "workOrderParts": 3,
+    "workRequests": 2,
+    "preventiveMaintenance": 2,
+    "pmTechnicians": 2,
+    "pmWorkOrders": 1,
+    "notifications": 1,
+    "documents": 1
+  }
+}

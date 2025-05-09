@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { WorkOrderWithDetails, workOrderStatusEnum } from "@shared/schema";
+import { WorkOrderWithDetails, workOrderStatusEnum, Asset } from "@shared/schema";
 import {
   Card,
   CardContent,
@@ -70,6 +70,32 @@ export default function WorkOrderDetails({ workOrder, onClose }: WorkOrderDetail
     initialData: workOrder,
   });
 
+  // Log asset information for debugging
+  useEffect(() => {
+    console.log("Work Order:", refreshedWorkOrder);
+    console.log("Asset ID:", refreshedWorkOrder.assetId);
+    console.log("Asset Information:", refreshedWorkOrder.asset);
+  }, [refreshedWorkOrder]);
+  
+  // Fetch asset information if missing but assetId exists
+  const [localAsset, setLocalAsset] = useState<Asset | null>(null);
+  
+  useEffect(() => {
+    // If work order has assetId but no asset object, fetch it directly
+    if (refreshedWorkOrder.assetId && !refreshedWorkOrder.asset && !localAsset) {
+      console.log("Asset missing but assetId exists, fetching directly:", refreshedWorkOrder.assetId);
+      
+      apiRequest("GET", `/api/assets/${refreshedWorkOrder.assetId}`)
+        .then((asset) => {
+          console.log("Fetched asset directly:", asset);
+          setLocalAsset(asset);
+        })
+        .catch((error) => {
+          console.error("Failed to fetch asset:", error);
+        });
+    }
+  }, [refreshedWorkOrder.assetId, refreshedWorkOrder.asset, localAsset]);
+
   // Format dates for display
   const formatDate = (dateString?: string | Date | null) => {
     if (!dateString) return 'Not specified';
@@ -118,8 +144,8 @@ export default function WorkOrderDetails({ workOrder, onClose }: WorkOrderDetail
         
         <div style="margin-bottom: 20px;">
           <h3 style="font-size: 14px; margin-bottom: 10px;">Asset Information</h3>
-          <div><strong>Asset Number:</strong> ${refreshedWorkOrder.asset?.assetNumber || 'N/A'}</div>
-          <div><strong>Description:</strong> ${refreshedWorkOrder.asset?.description || 'N/A'}</div>
+          <div><strong>Asset Number:</strong> ${refreshedWorkOrder.asset?.assetNumber || localAsset?.assetNumber || 'N/A'}</div>
+          <div><strong>Description:</strong> ${refreshedWorkOrder.asset?.description || localAsset?.description || 'N/A'}</div>
         </div>
         
         <div style="margin-bottom: 20px;">
@@ -444,22 +470,39 @@ export default function WorkOrderDetails({ workOrder, onClose }: WorkOrderDetail
                           <Drill className="h-4 w-4 mr-2 text-muted-foreground" />
                           Asset Information
                         </h3>
-                        {refreshedWorkOrder.asset ? (
-                          <Card className="bg-muted/30 border-dashed">
-                            <CardHeader className="p-3">
-                              <div className="flex justify-between items-center">
-                                <div>
-                                  <CardTitle className="text-sm">{refreshedWorkOrder.asset.assetNumber}</CardTitle>
-                                  <CardDescription className="text-xs">
-                                    {refreshedWorkOrder.asset.description}
-                                  </CardDescription>
+                        {refreshedWorkOrder.assetId ? (
+                          (refreshedWorkOrder.asset || localAsset) ? (
+                            <Card className="bg-muted/30 border-dashed">
+                              <CardHeader className="p-3">
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                    <CardTitle className="text-sm">
+                                      {refreshedWorkOrder.asset?.assetNumber || localAsset?.assetNumber}
+                                    </CardTitle>
+                                    <CardDescription className="text-xs">
+                                      {refreshedWorkOrder.asset?.description || localAsset?.description}
+                                    </CardDescription>
+                                  </div>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                    <ChevronRight className="h-4 w-4" />
+                                  </Button>
                                 </div>
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                  <ChevronRight className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </CardHeader>
-                          </Card>
+                              </CardHeader>
+                            </Card>
+                          ) : (
+                            <Card className="bg-muted/30 border-dashed">
+                              <CardHeader className="p-3">
+                                <div className="flex justify-between items-center">
+                                  <div>
+                                    <CardTitle className="text-sm">Asset ID: {refreshedWorkOrder.assetId}</CardTitle>
+                                    <CardDescription className="text-xs">
+                                      Asset details are loading...
+                                    </CardDescription>
+                                  </div>
+                                </div>
+                              </CardHeader>
+                            </Card>
+                          )
                         ) : (
                           <p className="text-sm text-muted-foreground">No asset assigned</p>
                         )}

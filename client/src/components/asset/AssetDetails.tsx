@@ -38,7 +38,9 @@ import {
   ClipboardList,
   Factory,
   FileText,
-  Upload
+  Upload,
+  File,
+  Download
 } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -53,6 +55,17 @@ const statusColors: Record<string, string> = {
   maintenance_required: "bg-amber-100 text-amber-800",
   retired: "bg-gray-100 text-gray-800",
 };
+
+// Document type definition
+interface AssetDocument {
+  id: number;
+  filename: string;
+  filesize: number;
+  uploadDate: string;
+  contentType: string;
+  entityId: number;
+  entityType: string;
+}
 
 interface AssetDetailsProps {
   asset: AssetWithDetails;
@@ -72,9 +85,30 @@ export default function AssetDetails({ asset, onClose }: AssetDetailsProps) {
     initialData: asset
   });
 
+  // Get asset documents
+  const { 
+    data: assetDocuments = [], 
+    isLoading: isLoadingDocuments 
+  } = useQuery<AssetDocument[]>({
+    queryKey: [`/api/documents/asset/${asset.id}`],
+    enabled: !!asset.id
+  });
+
+  // Format file size for display
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} bytes`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Handle document download
+  const handleDownloadDocument = (documentId: number): void => {
+    window.open(`/api/documents/${documentId}/download`, '_blank');
+  };
+
   // Status update mutation
   const updateStatusMutation = useMutation({
-    mutationFn: async (newStatus: string) => {
+    mutationFn: async (newStatus: typeof asset.status) => {
       await apiRequest("PUT", `/api/assets/${asset.id}`, { status: newStatus });
     },
     onSuccess: () => {
@@ -97,8 +131,8 @@ export default function AssetDetails({ asset, onClose }: AssetDetailsProps) {
   });
 
   const handleStatusChange = (newStatus: string) => {
-    setStatus(newStatus);
-    updateStatusMutation.mutate(newStatus);
+    setStatus(newStatus as typeof asset.status);
+    updateStatusMutation.mutate(newStatus as typeof asset.status);
   };
 
   return (
@@ -314,13 +348,60 @@ export default function AssetDetails({ asset, onClose }: AssetDetailsProps) {
                   )}
                 </TabsContent>
                 <TabsContent value="documents" className="pt-4">
-                  <div className="text-center py-6">
-                    <p className="text-sm text-muted-foreground">No documents attached to this asset</p>
+                  {isLoadingDocuments ? (
+                    <div className="flex justify-center py-6">
+                      <p className="text-sm text-muted-foreground">Loading documents...</p>
+                    </div>
+                  ) : assetDocuments.length > 0 ? (
+                    <div className="space-y-2">
+                      {assetDocuments.map((doc) => (
+                        <div key={doc.id} className="border rounded-md p-3">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center">
+                              <File className="h-5 w-5 mr-3 text-muted-foreground" />
+                              <div>
+                                <p className="text-sm font-medium">{doc.filename}</p>
+                                <div className="flex text-xs text-muted-foreground mt-1">
+                                  <span>{formatFileSize(doc.filesize)}</span>
+                                  <span className="mx-2">•</span>
+                                  <span>
+                                    {format(new Date(doc.uploadDate), 'MMM d, yyyy')}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => handleDownloadDocument(doc.id)}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <p className="text-sm text-muted-foreground">No documents attached to this asset</p>
+                      <Button 
+                        className="mt-2" 
+                        variant="outline"
+                        onClick={() => setIsDocumentUploadOpen(true)}
+                      >
+                        Upload Document
+                      </Button>
+                    </div>
+                  )}
+                  <div className="mt-4">
                     <Button 
-                      className="mt-2" 
-                      variant="outline"
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
                       onClick={() => setIsDocumentUploadOpen(true)}
                     >
+                      <Upload className="mr-2 h-4 w-4" />
                       Upload Document
                     </Button>
                   </div>
