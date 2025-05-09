@@ -2,6 +2,12 @@ import { db, schema } from './db';
 import crypto from 'crypto';
 import { DbStorage } from './dbStorage';
 
+// Check if we're in production environment
+const isProd = process.env.NODE_ENV?.toLowerCase() === 'production';
+if (isProd) {
+  console.log('Skipping database seeding in production environment');
+}
+
 // Hash password function
 const hashPassword = (password: string): string => {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -16,6 +22,12 @@ const addDays = (date: Date, days: number): Date => {
 
 // Main seed function
 export async function seedDatabase() {
+  // Skip seeding in production
+  if (isProd) {
+    console.log('Database seeding skipped in production environment');
+    return;
+  }
+  
   console.log('Starting database seeding...');
   const storage = new DbStorage();
   
