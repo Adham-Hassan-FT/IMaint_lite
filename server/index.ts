@@ -88,7 +88,7 @@ async function startServer() {
     }
 
     // Start the server
-    const port = 5000;
+    const port = process.env.PORT || 3000;
     server.listen({
       port,
       host: "0.0.0.0"
