@@ -39,7 +39,6 @@ This document provides detailed technical information for running, developing, a
    DATABASE_URL=postgresql://username:password@localhost:5432/imaint
    PORT=5000
    NODE_ENV=development
-   SESSION_SECRET=yoursessionsecrethere
    ```
 
 4. **Initialize the database**
@@ -68,7 +67,6 @@ This document provides detailed technical information for running, developing, a
    DATABASE_URL=postgresql://username:password@host:port/imaint
    PORT=5000
    NODE_ENV=production
-   SESSION_SECRET=yoursecureproductionsecret
    ```
 
 3. **Start the production server**
