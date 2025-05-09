@@ -1,10 +1,9 @@
-import { drizzle } from 'drizzle-orm/node-postgres';
-import pkg from 'pg';
-const { Pool } = pkg;
 import * as schema from '@shared/schema';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+
+// Determine environment
+const isProd = process.env.NODE_ENV === 'production';
 
 // Read database URL from .env file if it exists
 let databaseUrl = "";
@@ -32,32 +31,55 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
-// Create PostgreSQL connection pool
-const pool = new Pool({
-  connectionString: databaseUrl,
-  max: 10, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-  connectionTimeoutMillis: 2000, // Return an error after 2 seconds if a connection couldn't be established
-});
+// DB setup based on environment
+let db: any;
+let initializeDatabase: () => Promise<boolean>;
 
-// Create Drizzle ORM instance
-export const db = drizzle(pool, { schema });
-
-// Function to initialize the database
-export async function initializeDatabase() {
-  try {
-    // Verify database connection
-    const result = await pool.query('SELECT NOW()');
-    console.log('Successfully connected to the database at:', result.rows[0].now);
-    
-    // You could run migrations or other initial setup here
-    
-    return true;
-  } catch (error) {
-    console.error('Failed to connect to the database:', error);
-    return false;
-  }
+if (isProd) {
+  // PRODUCTION: Use Neon serverless
+  console.log('Using Neon serverless database connection for production');
+  const { drizzle } = await import('drizzle-orm/neon-http');
+  const { neon } = await import('@neondatabase/serverless');
+  
+  const sql = neon(databaseUrl);
+  db = drizzle(sql, { schema });
+  
+  initializeDatabase = async () => {
+    try {
+      const result = await sql`SELECT NOW()`;
+      console.log('Successfully connected to the database at:', result[0].now);
+      return true;
+    } catch (error) {
+      console.error('Failed to connect to the database:', error);
+      return false;
+    }
+  };
+} else {
+  // DEVELOPMENT: Use standard PostgreSQL
+  console.log('Using standard PostgreSQL connection for development');
+  const { drizzle } = await import('drizzle-orm/node-postgres');
+  const { Pool } = await import('pg');
+  
+  const pool = new Pool({
+    connectionString: databaseUrl,
+    max: 10,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+  });
+  
+  db = drizzle(pool, { schema });
+  
+  initializeDatabase = async () => {
+    try {
+      const result = await pool.query('SELECT NOW()');
+      console.log('Successfully connected to the database at:', result.rows[0].now);
+      return true;
+    } catch (error) {
+      console.error('Failed to connect to the database:', error);
+      return false;
+    }
+  };
 }
 
-// Export schema for convenience
-export { schema }; 
+// Export db and schema
+export { db, initializeDatabase, schema }; 
