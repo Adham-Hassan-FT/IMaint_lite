@@ -774,17 +774,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else {
         dateIssued = new Date();
       }
-      
+
       // Include work order ID in the data
       const partData = { 
         ...req.body, 
         workOrderId,
-        unitCost: inventoryItem.unitCost || 0,
-        totalCost: Number(inventoryItem.unitCost || 0) * quantity,
+        unitCost: String(inventoryItem.unitCost || 0),
+        totalCost: String(Number(inventoryItem.unitCost || 0) * quantity),
         dateIssued: dateIssued
       };
       
-      const validatedData = insertWorkOrderPartSchema.parse(partData);
+      const validatedData = insertWorkOrderPartSchema.parse(partData);      
       const newPart = await storage.createWorkOrderPart(validatedData);
       
       res.status(201).json(newPart);
