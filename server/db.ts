@@ -2,8 +2,11 @@ import * as schema from '@shared/schema';
 import fs from 'fs';
 import path from 'path';
 
-// Determine environment
-const isProd = process.env.NODE_ENV?.toLowerCase() === 'production';
+// Determine environment - explicitly check for Vercel deployment
+const isVercel = process.env.VERCEL === '1' || !!process.env.VERCEL_ENV || process.cwd().includes('/vercel/');
+const isProd = isVercel || process.env.NODE_ENV?.toLowerCase() === 'production';
+
+console.log(`Environment: ${isProd ? 'Production' : 'Development'} (isVercel: ${isVercel}, NODE_ENV: ${process.env.NODE_ENV})`);
 
 // Read database URL from .env file if it exists
 let databaseUrl = "";

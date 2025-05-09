@@ -2,11 +2,11 @@ import { db, schema } from './db';
 import crypto from 'crypto';
 import { DbStorage } from './dbStorage';
 
-// Check if we're in production environment
-const isProd = process.env.NODE_ENV?.toLowerCase() === 'production';
-if (isProd) {
-  console.log('Skipping database seeding in production environment');
-}
+// Check if we're in Vercel or production environment
+const isVercel = process.env.VERCEL === '1' || !!process.env.VERCEL_ENV || process.cwd().includes('/vercel/');
+const isProd = isVercel || process.env.NODE_ENV?.toLowerCase() === 'production';
+
+console.log(`Seed Database - Environment: ${isProd ? 'Production' : 'Development'} (isVercel: ${isVercel})`);
 
 // Hash password function
 const hashPassword = (password: string): string => {
