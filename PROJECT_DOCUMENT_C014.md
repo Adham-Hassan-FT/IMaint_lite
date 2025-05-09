@@ -22,7 +22,7 @@ IMaint Lite is designed as a full-stack JavaScript application with a focus on m
 
 1. **Frontend**:
    - React Native for the mobile application with TypeScript for type safety
-   - Custom styling based on TailwindCSS principles for native mobile components
+   - React Native Paper for native UI components
    - React Query for efficient data fetching and state management
    - React Navigation for cross-platform navigation
    - True native performance for field technicians

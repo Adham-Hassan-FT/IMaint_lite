@@ -78,8 +78,7 @@ IMaint Lite is built using a modern technology stack:
 
 - **Frontend**:
   - React Native with TypeScript for cross-platform mobile development
-  - TailwindCSS for styling with React Native support
-  - Custom UI component library based on shadcn/ui principles
+  - React Native Paper UI component library
   - React Query for data fetching
   - React Hook Form for form handling
   - React Navigation for routing and navigation
