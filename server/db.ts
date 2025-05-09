@@ -10,7 +10,7 @@ console.log(`Environment: ${isProd ? 'Production' : 'Development'} (isVercel: ${
 
 // Read database URL from .env file if it exists
 let databaseUrl = "";
-try { 
+try {
   // Check if .env file exists and read it
   const envPath = path.resolve(process.cwd(), '.env');
   if (fs.existsSync(envPath)) {
@@ -34,6 +34,10 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
+// Log masked URL for debugging
+const maskedUrl = databaseUrl.replace(/(postgres:\/\/[^:]+:)([^@]+)(@.*)/, '$1****$3');
+console.log(`Database URL format: ${maskedUrl}`);
+
 // DB setup based on environment
 let db: any;
 let initializeDatabase: () => Promise<boolean>;
@@ -41,39 +45,47 @@ let initializeDatabase: () => Promise<boolean>;
 if (isProd) {
   // PRODUCTION: Use Neon serverless
   console.log('Using Neon serverless database connection for production');
-  const { drizzle } = await import('drizzle-orm/neon-http');
-  const { neon } = await import('@neondatabase/serverless');
-  
-  const sql = neon(databaseUrl);
-  db = drizzle(sql, { schema });
   
   initializeDatabase = async () => {
     try {
+      // Import and use dedicated Neon module
+      const { setupNeonDb } = await import('./neondb');
+      const { db: neonDb, sql } = setupNeonDb(databaseUrl);
+      
+      // Set the global db reference
+      db = neonDb;
+      
+      // Test connection
       const result = await sql`SELECT NOW()`;
       console.log('Successfully connected to the database at:', result[0].now);
       return true;
     } catch (error) {
       console.error('Failed to connect to the database:', error);
+      console.error('Error details:', error instanceof Error ? error.message : String(error));
+      if (error instanceof Error && 'cause' in error) {
+        console.error('Caused by:', (error as Error & { cause?: unknown }).cause);
+      }
       return false;
     }
   };
 } else {
   // DEVELOPMENT: Use standard PostgreSQL
   console.log('Using standard PostgreSQL connection for development');
-  const { drizzle } = await import('drizzle-orm/node-postgres');
-  const { Pool } = await import('pg');
-  
-  const pool = new Pool({
-    connectionString: databaseUrl,
-    max: 10,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-  });
-  
-  db = drizzle(pool, { schema });
   
   initializeDatabase = async () => {
     try {
+      const { drizzle } = await import('drizzle-orm/node-postgres');
+      const { Pool } = await import('pg');
+      
+      const pool = new Pool({
+        connectionString: databaseUrl,
+        max: 10,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+      });
+      
+      db = drizzle(pool, { schema });
+      
       const result = await pool.query('SELECT NOW()');
       console.log('Successfully connected to the database at:', result.rows[0].now);
       return true;
